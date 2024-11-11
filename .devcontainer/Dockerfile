@@ -1,13 +1,11 @@
-FROM mcr.microsoft.com/vscode/devcontainers/base:ubuntu
+# Start with Python 3.11 image based on Debian 12 (Bookworm)
+FROM --platform=linux/amd64 mcr.microsoft.com/devcontainers/python:1-3.11-bookworm
 
-# Add your standard configurations here
-RUN apt-get update && apt-get install -y \
-    git \
-    wget
+# Create and set permissions for VS Code directories
+RUN mkdir -p /home/vscode/.vscode-server/extensions \
+    /home/vscode/.vscode-server/data \
+    /home/vscode/.vscode-server/bin && \
+    chown -R vscode:vscode /home/vscode/.vscode-server
 
-# Include extend Dockerfile if it exists
-COPY ../Dockerfile.extend* /tmp/
-RUN if [ -f "/tmp/Dockerfile.extend" ]; then \
-    cat /tmp/Dockerfile.extend >> /dockerfile-extend && \
-    bash /dockerfile-extend; \
-    fi
+# Switch back to the vscode user for security
+USER vscode
