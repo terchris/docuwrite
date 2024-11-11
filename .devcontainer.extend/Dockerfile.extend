@@ -1,0 +1,14 @@
+FROM ${localEnv:DEVCONTAINER_IMAGE_NAME}
+
+# Project-specific development tools and dependencies
+
+# Install Thunder Client dependencies if needed
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg
+
+# Install any FTP dependencies for FTP Simple
+RUN apt-get install -y \
+    lftp \
+    openssh-client 

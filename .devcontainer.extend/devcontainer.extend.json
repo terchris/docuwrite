@@ -1,0 +1,13 @@
+{
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rangav.vscode-thunder-client",
+                "humy2833.ftp-simple"
+            ]
+        }
+    },
+    "build": {
+        "dockerfile": "Dockerfile.extend"
+    }
+} 
