@@ -5,14 +5,6 @@
         "ghcr.io/devcontainers/features/node:1": {
             "version": "latest"
         },
-        "ghcr.io/devcontainers/features/python:1": {
-            "version": "3.11"
-        },
-        "ghcr.io/devcontainers/features/common-utils:2": {
-            "upgradePackages": true
-        },
-        "ghcr.io/devcontainers/features/azure-cli:1": {},
-        "ghcr.io/devcontainers/features/powershell:1": {},
     },
     "runArgs": [
         "--cap-add=NET_ADMIN",
@@ -24,12 +16,6 @@
         "vscode": {
             "extensions": [
                 "ms-vscode.azure-account",
-                "ms-vscode.azurecli",
-                "ms-vscode.powershell",
-                "yzhang.markdown-all-in-one",
-                "bierner.markdown-mermaid",
-                "redhat.vscode-yaml",
-                "donjayamanne.githistory"
             ]
         }
     },

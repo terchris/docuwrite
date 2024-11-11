@@ -1,5 +1,5 @@
 {
-    "terminal.integrated.fontFamily": "MesloLGS NF",
+    "terminal.integrated.fontFamily": "monospace",
     "editor.fontFamily": "MesloLGS NF, monospace",
     "editor.formatOnSave": true,
     "editor.rulers": [
