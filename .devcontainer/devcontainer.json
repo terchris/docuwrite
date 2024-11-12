@@ -47,5 +47,6 @@
     },
     "shutdownAction": "stopContainer",
     "updateRemoteUserUID": true,
-    "init": true
+    "init": true,
+    "postCreateCommand": "if [ -f .devcontainer.extend/project-installs.sh ]; then bash .devcontainer.extend/project-installs.sh; fi"
 }
