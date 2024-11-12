@@ -33,20 +33,17 @@
             ]
         }
     },
-    "mounts": [
-        "source=${localEnv:HOME}${localEnv:USERPROFILE}/.azure,target=/home/vscode/.azure,type=bind,consistency=cached",
-        "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
-        "source=${localEnv:PODMAN_SOCKET},target=/var/run/docker.sock,type=bind,consistency=cached"
-    ],
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     "remoteUser": "vscode",
     "containerUser": "vscode",
     "remoteEnv": {
-        "PYTHONPATH": "${containerWorkspaceFolder}",
-        "NODE_ENV": "development",
-        "AZURE_DEFAULTS_GROUP": "operations",
-        "DOCKER_HOST": "${localEnv:DOCKER_HOST}"
+        "DOCKER_HOST": "/var/run/docker.sock",
+        "DOCKER_HOST_URI": "/var/run/docker.sock",
+        "PODMAN_SOCKET": "/var/run/docker.sock"
     },
+    "mounts": [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached"
+    ],
     "shutdownAction": "stopContainer",
     "updateRemoteUserUID": true,
     "init": true,
@@ -54,6 +51,6 @@
     "initializeCommand": [
         "bash",
         "-c",
-        "chmod +x ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh && ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh"
+        "chmod +x ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh && cd ${localWorkspaceFolder} && ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh && source ${localWorkspaceFolder}/.podman_env"
     ]
 }
