@@ -12,7 +12,7 @@
             "upgradePackages": true
         },
         "ghcr.io/devcontainers/features/azure-cli:1": {},
-        "ghcr.io/devcontainers/features/powershell:1": {},
+        "ghcr.io/devcontainers/features/powershell:1": {}
     },
     "runArgs": [
         "--cap-add=NET_ADMIN",
@@ -35,7 +35,8 @@
     },
     "mounts": [
         "source=${localEnv:HOME}${localEnv:USERPROFILE}/.azure,target=/home/vscode/.azure,type=bind,consistency=cached",
-        "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
+        "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+        "source=${localEnv:PODMAN_SOCKET},target=/var/run/docker.sock,type=bind,consistency=cached"
     ],
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     "remoteUser": "vscode",
@@ -43,10 +44,16 @@
     "remoteEnv": {
         "PYTHONPATH": "${containerWorkspaceFolder}",
         "NODE_ENV": "development",
-        "AZURE_DEFAULTS_GROUP": "operations"
+        "AZURE_DEFAULTS_GROUP": "operations",
+        "DOCKER_HOST": "${localEnv:DOCKER_HOST}"
     },
     "shutdownAction": "stopContainer",
     "updateRemoteUserUID": true,
     "init": true,
-    "postCreateCommand": "if [ -f .devcontainer.extend/project-installs.sh ]; then bash .devcontainer.extend/project-installs.sh; fi"
+    "postCreateCommand": "if [ -f .devcontainer.extend/project-installs.sh ]; then bash .devcontainer.extend/project-installs.sh; fi",
+    "initializeCommand": [
+        "bash",
+        "-c",
+        "chmod +x ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh && ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh"
+    ]
 }

@@ -1,9 +1,9 @@
-[2024-11-11T20:15:36.896Z] Dev Containers 0.388.0 in VS Code 1.95.2 (e8653663e8840adaf45af01eab5c627a5af81807).
-[2024-11-11T20:15:36.896Z] Start: Resolving Remote
-[2024-11-11T20:15:36.910Z] Setting up container for folder or workspace: /Users/terje.christensen/learn/projects-2024/docuwrite
-[2024-11-11T20:15:36.911Z] Start: Check Docker is running
-[2024-11-11T20:15:36.911Z] Start: Run: docker version
-[2024-11-11T20:15:37.026Z] Client:       Podman Engine
+[2024-11-12T10:47:16.782Z] Dev Containers 0.388.0 in VS Code 1.95.2 (e8653663e8840adaf45af01eab5c627a5af81807).
+[2024-11-12T10:47:16.782Z] Start: Resolving Remote
+[2024-11-12T10:47:16.795Z] Setting up container for folder or workspace: /Users/terje.christensen/learn/projects-2024/docuwrite
+[2024-11-12T10:47:16.797Z] Start: Check Docker is running
+[2024-11-12T10:47:16.797Z] Start: Run: docker version
+[2024-11-12T10:47:16.963Z] Client:       Podman Engine
 Version:      5.2.4
 API Version:  5.2.4
 Go Version:   go1.23.2
@@ -17,62 +17,46 @@ API Version:  5.2.5
 Go Version:   go1.22.7
 Built:        Fri Oct 18 02:00:00 2024
 OS/Arch:      linux/arm64
-[2024-11-11T20:15:37.027Z] Stop (116 ms): Run: docker version
-[2024-11-11T20:15:37.028Z] Stop (117 ms): Check Docker is running
-[2024-11-11T20:15:37.028Z] Start: Run: docker volume ls -q
-[2024-11-11T20:15:37.094Z] Stop (66 ms): Run: docker volume ls -q
-[2024-11-11T20:15:37.094Z] Start: Run: docker volume create vscode
-[2024-11-11T20:15:37.167Z] Stop (73 ms): Run: docker volume create vscode
-[2024-11-11T20:15:37.167Z] Start: Run: docker ps -q -a --filter label=vsch.local.folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=vsch.quality=stable
-[2024-11-11T20:15:37.244Z] Stop (77 ms): Run: docker ps -q -a --filter label=vsch.local.folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=vsch.quality=stable
-[2024-11-11T20:15:37.245Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json
-[2024-11-11T20:15:37.323Z] Stop (78 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json
-[2024-11-11T20:15:37.323Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
-[2024-11-11T20:15:37.389Z] Stop (66 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
-[2024-11-11T20:15:37.389Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
-[2024-11-11T20:15:37.455Z] Stop (66 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
-[2024-11-11T20:15:37.455Z] Running Dev Containers CLI:   up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-ee089a4e-1e85-4006-b68d-531a02aa29911731356136288 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
-[2024-11-11T20:15:37.477Z] ProxyResolver#loadSystemCertificates count
-[2024-11-11T20:15:37.477Z] ProxyResolver#loadSystemCertificates count filtered
-[2024-11-11T20:15:37.478Z] Start: Run: /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-ee089a4e-1e85-4006-b68d-531a02aa29911731356136288 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
-[2024-11-11T20:15:37.615Z] @devcontainers/cli 0.71.0. Node.js v20.18.0. darwin 24.0.0 arm64.
-[2024-11-11T20:15:37.615Z] Start: Run: docker buildx version
-[2024-11-11T20:15:37.679Z] Stop (64 ms): Run: docker buildx version
-[2024-11-11T20:15:37.679Z] buildah 1.37.4
-[2024-11-11T20:15:37.679Z]
-[2024-11-11T20:15:37.679Z] Start: Run: docker -v
-[2024-11-11T20:15:37.697Z] Stop (18 ms): Run: docker -v
-[2024-11-11T20:15:37.697Z] Start: Resolving Remote
-[2024-11-11T20:15:37.699Z] Start: Run: git rev-parse --show-cdup
-[2024-11-11T20:15:37.709Z] Stop (10 ms): Run: git rev-parse --show-cdup
-[2024-11-11T20:15:37.711Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json
-[2024-11-11T20:15:37.775Z] Stop (64 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json
-[2024-11-11T20:15:37.775Z] Start: Run: docker inspect --type image docker.io/mcr.microsoft.com/devcontainers/base:ubuntu
-[2024-11-11T20:15:37.840Z] Stop (65 ms): Run: docker inspect --type image docker.io/mcr.microsoft.com/devcontainers/base:ubuntu
-[2024-11-11T20:15:37.841Z] Loading 6 extra certificates from /var/folders/_x/jpn255wn7xxbx1wnw5z_p6fc0000gp/T/vsch/certificates-8d4246063dc0ee0794e5f8e45f5bbb275f5cddb1ac2d45d620c7951fbdbebc48.pem.
-[2024-11-11T20:15:38.199Z] Start: Run: docker-credential-desktop get
-[2024-11-11T20:15:38.206Z] Stop (7 ms): Run: docker-credential-desktop get
-[2024-11-11T20:15:38.207Z] Stop (8 ms): Run: docker-credential-desktop get
-[2024-11-11T20:15:39.229Z] Start: Run: docker-credential-desktop get
-[2024-11-11T20:15:39.231Z] Stop (2 ms): Run: docker-credential-desktop get
-[2024-11-11T20:15:39.231Z] Stop (2 ms): Run: docker-credential-desktop get
-[2024-11-11T20:15:39.883Z] Error fetching image details: No manifest found for docker.io/mcr.microsoft.com/devcontainers/base:ubuntu.
-[2024-11-11T20:15:39.884Z] Start: Run: docker pull docker.io/mcr.microsoft.com/devcontainers/base:ubuntu
-[2024-11-11T20:15:39.989Z] Trying to pull docker.io/mcr.microsoft.com/devcontainers/base:ubuntu...
-[2024-11-11T20:15:41.481Z] Error: initializing source docker://mcr.microsoft.com/devcontainers/base:ubuntu: reading manifest ubuntu in docker.io/mcr.microsoft.com/devcontainers/base: requested access to the resource is denied
-[2024-11-11T20:15:41.484Z] Stop (1600 ms): Run: docker pull docker.io/mcr.microsoft.com/devcontainers/base:ubuntu
-[2024-11-11T20:15:41.484Z] []
-[2024-11-11T20:15:41.484Z] Error: unable to inspect "docker.io/mcr.microsoft.com/devcontainers/base:ubuntu": failed to find image docker.io/mcr.microsoft.com/devcontainers/base:ubuntu: docker.io/mcr.microsoft.com/devcontainers/base:ubuntu: image not known
+[2024-11-12T10:47:16.963Z] Stop (166 ms): Run: docker version
+[2024-11-12T10:47:16.964Z] Stop (167 ms): Check Docker is running
+[2024-11-12T10:47:16.964Z] Start: Run: docker volume ls -q
+[2024-11-12T10:47:17.045Z] Stop (81 ms): Run: docker volume ls -q
+[2024-11-12T10:47:17.045Z] Start: Run: docker ps -q -a --filter label=vsch.local.folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=vsch.quality=stable
+[2024-11-12T10:47:17.125Z] Stop (80 ms): Run: docker ps -q -a --filter label=vsch.local.folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=vsch.quality=stable
+[2024-11-12T10:47:17.126Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json
+[2024-11-12T10:47:17.203Z] Stop (77 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --filter label=devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json
+[2024-11-12T10:47:17.203Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
+[2024-11-12T10:47:17.275Z] Stop (72 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
+[2024-11-12T10:47:17.275Z] Start: Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
+[2024-11-12T10:47:17.355Z] Stop (80 ms): Run: docker ps -q -a --filter label=devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite
+[2024-11-12T10:47:17.356Z] Running Dev Containers CLI:   up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-5119c6a7-5f54-4de5-b5af-ab5161ffc4571731408436277 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
+[2024-11-12T10:47:17.386Z] ProxyResolver#loadSystemCertificates count
+[2024-11-12T10:47:17.387Z] ProxyResolver#loadSystemCertificates count filtered
+[2024-11-12T10:47:17.387Z] Start: Run: /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-5119c6a7-5f54-4de5-b5af-ab5161ffc4571731408436277 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
+[2024-11-12T10:47:17.537Z] @devcontainers/cli 0.71.0. Node.js v20.18.0. darwin 24.0.0 arm64.
+[2024-11-12T10:47:17.537Z] Start: Run: docker buildx version
+[2024-11-12T10:47:17.649Z] Stop (112 ms): Run: docker buildx version
+[2024-11-12T10:47:17.650Z] buildah 1.37.4
+[2024-11-12T10:47:17.650Z]
+[2024-11-12T10:47:17.650Z] Start: Run: docker -v
+[2024-11-12T10:47:17.673Z] Stop (23 ms): Run: docker -v
+[2024-11-12T10:47:17.673Z] Start: Resolving Remote
+[2024-11-12T10:47:17.675Z] Start: Run: git rev-parse --show-cdup
+[2024-11-12T10:47:17.685Z] Stop (10 ms): Run: git rev-parse --show-cdup
+[2024-11-12T10:47:17.690Z] Running the initializeCommand from devcontainer.json...
 
-[2024-11-11T20:15:41.485Z] Error: Command failed: docker inspect --type image docker.io/mcr.microsoft.com/devcontainers/base:ubuntu
-[2024-11-11T20:15:41.485Z]     at ytA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:465:1260)
-[2024-11-11T20:15:41.485Z]     at bH (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:465:1002)
-[2024-11-11T20:15:41.485Z]     at async TtA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:3848)
-[2024-11-11T20:15:41.485Z]     at async iB (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:4963)
-[2024-11-11T20:15:41.486Z]     at async wrA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:663:203)
-[2024-11-11T20:15:41.486Z]     at async DrA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:662:14830)
-[2024-11-11T20:15:41.486Z]     at async /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:1190
-[2024-11-11T20:15:41.496Z] Stop (4018 ms): Run: /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-ee089a4e-1e85-4006-b68d-531a02aa29911731356136288 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
-[2024-11-11T20:15:41.496Z] Exit code 1
-[2024-11-11T20:15:41.499Z] Command failed: /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-ee089a4e-1e85-4006-b68d-531a02aa29911731356136288 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
-[2024-11-11T20:15:41.499Z] Exit code 1
+[2024-11-12T10:47:17.690Z] Start: Run: /bin/sh -c .devcontainer/setup/update-vscode-podman.sh
+[2024-11-12T10:47:17.884Z] 🔧 Finding Podman socket path...
+[2024-11-12T10:47:18.047Z] ❌ Could not find Podman socket path
+[2024-11-12T10:47:18.047Z] Stop (357 ms): Run: /bin/sh -c .devcontainer/setup/update-vscode-podman.sh
+[2024-11-12T10:47:18.049Z] Error: Command failed: /bin/sh -c .devcontainer/setup/update-vscode-podman.sh
+[2024-11-12T10:47:18.049Z]     at HH (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:15)
+[2024-11-12T10:47:18.049Z]     at async TtA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:3710)
+[2024-11-12T10:47:18.049Z]     at async iB (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:4963)
+[2024-11-12T10:47:18.049Z]     at async wrA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:663:203)
+[2024-11-12T10:47:18.049Z]     at async DrA (/Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:662:14830)
+[2024-11-12T10:47:18.049Z]     at async /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js:482:1190
+[2024-11-12T10:47:18.053Z] Stop (666 ms): Run: /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-5119c6a7-5f54-4de5-b5af-ab5161ffc4571731408436277 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
+[2024-11-12T10:47:18.053Z] Exit code 1
+[2024-11-12T10:47:18.056Z] Command failed: /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) /Users/terje.christensen/.vscode/extensions/ms-vscode-remote.remote-containers-0.388.0/dist/spec-node/devContainersSpecCLI.js up --user-data-folder /Users/terje.christensen/Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/data --container-session-data-folder /tmp/devcontainers-5119c6a7-5f54-4de5-b5af-ab5161ffc4571731408436277 --workspace-folder /Users/terje.christensen/learn/projects-2024/docuwrite --workspace-mount-consistency cached --gpu-availability detect --id-label devcontainer.local_folder=/Users/terje.christensen/learn/projects-2024/docuwrite --id-label devcontainer.config_file=/Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --log-level debug --log-format json --config /Users/terje.christensen/learn/projects-2024/docuwrite/.devcontainer/devcontainer.json --default-user-env-probe loginInteractiveShell --mount type=volume,source=vscode,target=/vscode,external=true --skip-post-create --update-remote-user-uid-default on --mount-workspace-git-root --include-configuration --include-merged-configuration
+[2024-11-12T10:47:18.056Z] Exit code 1
