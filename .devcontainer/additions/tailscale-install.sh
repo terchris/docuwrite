@@ -3,7 +3,7 @@
 #
 # Purpose: Installs Tailscale and sets up required directories in a devcontainer
 #
-# Usage: sudo bash tailscale-install.sh [--force]
+# Usage: sudo .devcontainer/additions/tailscale-install.sh [--force]
 #
 # Options:
 #   --force    Force reinstall if already installed
@@ -11,11 +11,11 @@
 set -euo pipefail
 
 # Load environment variables
-if [[ -f "/workspaces/.devcontainer.extended/tailscale.env" ]]; then
+if [[ -f "/workspace/.devcontainer.extend/tailscale.env" ]]; then
     # shellcheck source=/dev/null
-    source "/workspaces/.devcontainer.extended/tailscale.env"
+    source "/workspace/.devcontainer.extend/tailscale.env"
 else
-    echo "Error: tailscale.env not found in .devcontainer.extended/"
+    echo "Error: tailscale.env not found in /workspace/.devcontainer.extend/"
     exit 1
 fi
 
@@ -48,17 +48,25 @@ done
 # Check for required capabilities
 check_capabilities() {
     log_info "Checking container capabilities..."
-    local required_caps=("NET_ADMIN" "NET_RAW" "SYS_ADMIN" "AUDIT_WRITE")
-    local missing_caps=()
 
-    for cap in "${required_caps[@]}"; do
-        if ! grep -q "CapEff.*$cap" /proc/self/status 2>/dev/null; then
-            missing_caps+=("$cap")
-        fi
-    done
+    # Install capsh if not present
+    if ! command -v capsh >/dev/null; then
+        log_info "Installing libcap2-bin for capability checking..."
+        apt-get update -qq && apt-get install -y libcap2-bin >/dev/null 2>&1
+    fi
 
-    if [[ ${#missing_caps[@]} -ne 0 ]]; then
-        log_error "Missing required capabilities: ${missing_caps[*]}"
+    # Check using capsh --print
+    local current_caps
+    current_caps=$(capsh --print 2>/dev/null | grep "Current:" || echo "")
+
+    # Check for all required capabilities
+    if ! echo "$current_caps" | grep -q "cap_net_admin" || \
+       ! echo "$current_caps" | grep -q "cap_net_raw" || \
+       ! echo "$current_caps" | grep -q "cap_sys_admin" || \
+       ! echo "$current_caps" | grep -q "cap_audit_write"; then
+
+        log_error "Missing required capabilities"
+        log_error "Current capabilities: $current_caps"
         log_error "Please ensure your devcontainer.json includes:"
         cat << EOF
 "runArgs": [
@@ -72,25 +80,45 @@ check_capabilities() {
 EOF
         return 1
     fi
+
+    log_info "All required capabilities are present"
+    return 0
 }
 
-# Setup network requirements
-setup_networking() {
-    log_info "Setting up networking requirements..."
+# Verify network requirements
+verify_networking() {
+    log_info "Verifying networking requirements..."
 
-    # Setup TUN device
-    if [[ ! -d /dev/net ]]; then
-        mkdir -p /dev/net
-    fi
-    if [[ ! -c /dev/net/tun ]]; then
-        mknod /dev/net/tun c 10 200
-    fi
-    chmod 666 /dev/net/tun
+    # Verify TUN device setup
+    if [[ -c /dev/net/tun ]]; then
+        log_info "TUN device is properly configured:"
+        ls -l /dev/net/tun
+        return 0  # Indicate success
+    else
+        log_error "TUN device is not configured correctly."
+        log_info "Attempting to set up TUN device..."
 
-    # Enable IP forwarding
-    echo 1 > /proc/sys/net/ipv4/ip_forward
-    echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+        # Setup TUN device if it doesn't exist
+        if [[ ! -d /dev/net ]]; then
+            mkdir -p /dev/net
+        fi
+        if [[ ! -c /dev/net/tun ]]; then
+            mknod /dev/net/tun c 10 200
+        fi
+        chmod 666 /dev/net/tun
+
+        # Verify again to ensure setup was successful
+        if [[ -c /dev/net/tun ]]; then
+            log_info "TUN device has been set up successfully:"
+            ls -l /dev/net/tun
+            return 0  # Indicate success
+        else
+            log_error "Failed to set up TUN device."
+            return 1  # Indicate failure
+        fi
+    fi
 }
+
 
 # Create required directories
 create_directories() {
@@ -152,7 +180,7 @@ main() {
     log_info "Starting Tailscale installation..."
 
     check_capabilities || exit 1
-    setup_networking || exit 1
+    verify_networking || exit 1
     create_directories || exit 1
     install_tailscale || exit 1
 

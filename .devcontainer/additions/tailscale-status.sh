@@ -3,7 +3,7 @@
 #
 # Purpose: Shows Tailscale status and diagnostics information
 #
-# Usage: sudo bash tailscale-status.sh [OPTIONS]
+# Usage: sudo .devcontainer/additions/tailscale-status.sh [OPTIONS]
 #
 # Options:
 #   --json     Output in JSON format
@@ -13,11 +13,11 @@
 set -euo pipefail
 
 # Load environment variables
-if [[ -f "/workspaces/.devcontainer.extended/tailscale.env" ]]; then
+if [[ -f "/workspace/.devcontainer.extend/tailscale.env" ]]; then
     # shellcheck source=/dev/null
-    source "/workspaces/.devcontainer.extended/tailscale.env"
+    source "/workspace/.devcontainer.extend/tailscale.env"
 else
-    echo "Error: tailscale.env not found in .devcontainer.extended/"
+    echo "Error: tailscale.env not found in .devcontainer.extend/"
     exit 1
 fi
 

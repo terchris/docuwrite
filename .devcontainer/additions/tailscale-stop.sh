@@ -3,7 +3,7 @@
 #
 # Purpose: Stops Tailscale service and optionally cleans up resources
 #
-# Usage: sudo bash tailscale-stop.sh [OPTIONS]
+# Usage: sudo .devcontainer/additions/tailscale-stop.sh [OPTIONS]
 #
 # Options:
 #   --force     Force stop if graceful shutdown fails
@@ -12,11 +12,11 @@
 set -euo pipefail
 
 # Load environment variables
-if [[ -f "/workspaces/.devcontainer.extended/tailscale.env" ]]; then
+if [[ -f "/workspace/.devcontainer.extend/tailscale.env" ]]; then
     # shellcheck source=/dev/null
-    source "/workspaces/.devcontainer.extended/tailscale.env"
+    source "/workspace/.devcontainer.extend/tailscale.env"
 else
-    echo "Error: tailscale.env not found in .devcontainer.extended/"
+    echo "Error: tailscale.env not found in .devcontainer.extend/"
     exit 1
 fi
 

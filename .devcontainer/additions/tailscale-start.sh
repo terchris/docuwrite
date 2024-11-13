@@ -2,8 +2,9 @@
 # File: .devcontainer/additions/tailscale-start.sh
 #
 # Purpose: Starts and configures Tailscale in a devcontainer
+# Based on working example from howto documentation
 #
-# Usage: sudo bash tailscale-start.sh [--force]
+# Usage: sudo .devcontainer/additions/tailscale-start.sh [--force]
 #
 # Options:
 #   --force    Force restart if already running
@@ -11,18 +12,17 @@
 set -euo pipefail
 
 # Load environment variables
-if [[ -f "/workspaces/.devcontainer.extended/tailscale.env" ]]; then
+if [[ -f "/workspace/.devcontainer.extend/tailscale.env" ]]; then
     # shellcheck source=/dev/null
-    source "/workspaces/.devcontainer.extended/tailscale.env"
+    source "/workspace/.devcontainer.extend/tailscale.env"
 else
-    echo "Error: tailscale.env not found in .devcontainer.extended/"
+    echo "Error: tailscale.env not found in .devcontainer.extend/"
     exit 1
 fi
 
 # Logging functions
 log_info() { echo "[INFO] $*" >&2; }
 log_error() { echo "[ERROR] $*" >&2; }
-log_debug() { [[ "${TAILSCALE_LOG_TO_CONSOLE:-false}" == "true" ]] && echo "[DEBUG] $*" >&2; }
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -45,55 +45,29 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Install xdg-utils for clickable URLs
+ensure_xdg_utils() {
+    if ! command -v xdg-open >/dev/null; then
+        log_info "Installing xdg-utils for clickable URLs..."
+        apt-get update -qq && apt-get install -y xdg-utils >/dev/null 2>&1
+    fi
+}
+
 # Generate hostname from email
 generate_hostname() {
     local email="${TAILSCALE_USER_EMAIL}"
     if [[ -z "$email" ]]; then
         log_error "TAILSCALE_USER_EMAIL must be set in tailscale.env"
         return 1
-    }
-
-    # Extract username part from email (everything before @)
-    local username="${email%@*}"
-
-    # Replace dots and any other special chars with hyphen
-    username=$(echo "$username" | tr '.' '-' | tr -c '[:alnum:]-' '-')
-
-    # Construct the hostname with required prefix
-    local hostname="devcontainerlocal-${username}"
-
-    # Ensure no double hyphens and remove trailing hyphen
-    hostname=$(echo "$hostname" | tr -s '-')
-    hostname=${hostname%-}
-
-    log_debug "Generated hostname: $hostname from email: $email"
-    echo "$hostname"
-}
-
-# Verify Tailscale installation
-verify_installation() {
-    log_info "Verifying Tailscale installation..."
-
-    if ! command -v tailscale >/dev/null || ! command -v tailscaled >/dev/null; then
-        log_error "Tailscale is not installed. Please run tailscale-install.sh first"
-        return 1
     fi
 
-    # Check required directories
-    local required_dirs=(
-        "${TAILSCALE_BASE_DIR}"
-        "${TAILSCALE_STATE_DIR}"
-        "${TAILSCALE_RUNTIME_DIR}"
-        "${TAILSCALE_LOG_BASE}"
-        "${TAILSCALE_LOG_DAEMON_DIR}"
-    )
+    # Extract username part from email and clean it
+    local username="${email%@*}"
+    # Replace dots and special chars with hyphen and remove trailing hyphens
+    username=$(echo "$username" | tr '.' '-' | tr -c '[:alnum:]-' '-' | sed 's/-*$//')
 
-    for dir in "${required_dirs[@]}"; do
-        if [[ ! -d "$dir" ]]; then
-            log_error "Required directory not found: $dir"
-            return 1
-        fi
-    done
+    # Construct hostname (without trailing hyphen)
+    echo "devcontainer-${username}"
 }
 
 # Start Tailscale daemon
@@ -111,17 +85,14 @@ start_daemon() {
         sleep 2
     fi
 
-    # Start daemon with logging
-    tailscaled \
-        --verbose="${TAILSCALE_LOG_LEVEL}" \
-        --statedir="${TAILSCALE_STATE_DIR}" \
-        >> "${TAILSCALE_DAEMON_LOG}" 2>&1 &
+    # Start daemon with verbose logging as shown in howto
+    tailscaled --verbose=1 --statedir=/var/lib/tailscale &
 
     # Wait for daemon to start
     local retries=5
     while ((retries > 0)); do
         if pidof tailscaled >/dev/null; then
-            log_debug "Daemon started successfully"
+            log_info "Daemon started successfully"
             return 0
         fi
         retries=$((retries - 1))
@@ -129,7 +100,6 @@ start_daemon() {
     done
 
     log_error "Tailscale daemon failed to start"
-    tail -n 10 "${TAILSCALE_DAEMON_LOG}" | log_error
     return 1
 }
 
@@ -142,43 +112,24 @@ start_tailscale() {
         return 1
     fi
 
-    local up_args=(
-        "--hostname=${hostname}"
-        "--accept-routes=true"
-    )
-
-    # Add tags if specified
-    if [[ -n "${TAILSCALE_TAGS:-}" ]]; then
-        up_args+=("--advertise-tags=${TAILSCALE_TAGS}")
-    fi
-
     log_info "Starting Tailscale with hostname: ${hostname}"
-    if ! tailscale up "${up_args[@]}"; then
-        log_error "Failed to start Tailscale"
+
+    # Run tailscale up with hostname
+    tailscale up --hostname="$hostname"
+
+    # Check connection status after authentication
+    if tailscale status | grep -q "^100\."; then
+        log_info "Tailscale connected successfully"
+        return 0
+    else
+        log_error "Failed to establish Tailscale connection"
         return 1
     fi
-
-    # Wait for connection
-    local timeout="${TAILSCALE_CONNECT_TIMEOUT}"
-    local retries="${TAILSCALE_MAX_RETRIES}"
-
-    while ((retries > 0)); do
-        if tailscale status | grep -q "^100\."; then
-            log_info "Tailscale connected successfully"
-            return 0
-        fi
-        retries=$((retries - 1))
-        sleep $((timeout / TAILSCALE_MAX_RETRIES))
-    done
-
-    log_error "Failed to establish Tailscale connection within timeout"
-    return 1
 }
 
 # Configure exit node
 configure_exit_node() {
     if [[ "${TAILSCALE_EXIT_NODE_ENABLED}" != "true" ]]; then
-        log_info "Exit node functionality disabled"
         return 0
     fi
 
@@ -186,8 +137,8 @@ configure_exit_node() {
     log_info "Configuring exit node (${proxy_host})..."
 
     # Wait for proxy to be available
-    local retries="${TAILSCALE_MAX_RETRIES}"
-    local exit_node_ip
+    local retries=10
+    local exit_node_ip=""
 
     while ((retries > 0)); do
         exit_node_ip=$(tailscale status --json | jq -r --arg name "${proxy_host}" '
@@ -200,7 +151,7 @@ configure_exit_node() {
             break
         fi
         retries=$((retries - 1))
-        sleep $((TAILSCALE_CONNECT_TIMEOUT / TAILSCALE_MAX_RETRIES))
+        sleep 2
     done
 
     if [[ -z "${exit_node_ip}" || "${exit_node_ip}" == "null" ]]; then
@@ -208,19 +159,25 @@ configure_exit_node() {
         return 1
     fi
 
+    log_info "Setting up exit node with IP: ${exit_node_ip}"
+    # Set exit node with correct flag syntax
     if ! tailscale set \
         --exit-node="${exit_node_ip}" \
-        --exit-node-allow-lan="${TAILSCALE_EXIT_NODE_ALLOW_LAN}"; then
+        --exit-node-allow-lan-access=true; then
         log_error "Failed to configure exit node"
         return 1
     fi
 
     log_info "Exit node configured successfully"
+    # Display final status
+    tailscale status
 }
 
 # Main startup process
 main() {
-    verify_installation || exit 1
+    # Ensure xdg-utils is installed first
+    ensure_xdg_utils
+
     start_daemon || exit 1
     start_tailscale || exit 1
     configure_exit_node || exit 1

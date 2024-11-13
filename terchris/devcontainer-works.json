@@ -33,7 +33,7 @@
             ]
         }
     },
-    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    "workspaceFolder": "/workspace/${localWorkspaceFolderBasename}",
     "remoteUser": "vscode",
     "containerUser": "vscode",
     "remoteEnv": {

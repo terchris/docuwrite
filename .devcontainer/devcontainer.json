@@ -1,6 +1,11 @@
 {
+    // we are using devcontainers read about it: https://code.visualstudio.com/docs/devcontainers/containers
+    // or watch this video intro: https://www.youtube.com/watch?v=b1RavPr_878&t=38s
+    // NEWER edit this file. It is the same for all projects. Extend in the .devcontainer.extend folder
     "name": "DevContainer Toolbox",
+    // we have a base image that supports pyhon
     "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+    // and we add these features
     "features": {
         "ghcr.io/devcontainers/features/node:1": {
             "version": "latest"
@@ -11,6 +16,7 @@
         "ghcr.io/devcontainers/features/azure-cli:1": {},
         "ghcr.io/devcontainers/features/powershell:1": {}
     },
+    // these are needed for setting up vpn in the container
     "runArgs": [
         "--cap-add=NET_ADMIN",
         "--cap-add=NET_RAW",
@@ -21,6 +27,7 @@
     ],
     "customizations": {
         "vscode": {
+            // by default we set up these extensions
             "extensions": [
                 "ms-vscode.azure-account",
                 "ms-vscode.azurecli",
@@ -32,7 +39,6 @@
             ]
         }
     },
-    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     "remoteUser": "vscode",
     "containerUser": "vscode",
     "remoteEnv": {
@@ -43,13 +49,13 @@
     "mounts": [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached"
     ],
+    // your repo root will always be /workspace
+    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    // we stop the container when you exit vscode
     "shutdownAction": "stopContainer",
     "updateRemoteUserUID": true,
     "init": true,
-    "postCreateCommand": "if [ -f .devcontainer.extend/project-installs.sh ]; then bash .devcontainer.extend/project-installs.sh; fi",
-    "initializeCommand": [
-        "bash",
-        "-c",
-        "chmod +x ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh && cd ${localWorkspaceFolder} && ${localWorkspaceFolder}/.devcontainer/setup/update-vscode-podman.sh && source ${localWorkspaceFolder}/.podman_env"
-    ]
+    // in this file you add project spessific installs.
+    "postCreateCommand": "if [ -f .devcontainer.extend/project-installs.sh ]; then bash .devcontainer.extend/project-installs.sh; fi"
 }
