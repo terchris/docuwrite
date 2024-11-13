@@ -10,6 +10,22 @@
 
 set -euo pipefail
 
+# Track if we had any errors
+INSTALL_SUCCESS=false
+
+# Cleanup and exit handler
+cleanup() {
+    local exit_code=$?
+    if [[ "$INSTALL_SUCCESS" != "true" ]]; then
+        log_error "Installation failed"
+        exit 1
+    fi
+    exit $exit_code
+}
+
+# Set trap
+trap cleanup EXIT
+
 # Load environment variables
 if [[ -f "/workspace/.devcontainer.extend/tailscale.env" ]]; then
     # shellcheck source=/dev/null
@@ -187,6 +203,7 @@ main() {
     create_directories || exit 1
     install_tailscale || exit 1
 
+    INSTALL_SUCCESS=true
     log_info "Installation completed successfully"
 }
 
