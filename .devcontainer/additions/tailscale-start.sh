@@ -52,10 +52,10 @@ test_connectivity() {
     local count="${3:-4}"
     local timeout="${4:-5}"
 
-    log_info "Testing connectivity to ${description} (${target})..."
+    log_info "Testing connectivity to ${description}..."
 
     if ! ping -c "$count" -W "$timeout" "$target" >/dev/null 2>&1; then
-        log_error "Cannot reach ${description} at ${target}"
+        log_error "Cannot reach ${description}"
         return 1
     fi
 
@@ -133,36 +133,37 @@ start_daemon() {
 
 
 # Initial Tailscale connection
+# Connect to Tailscale
 connect_tailscale() {
     local hostname
     hostname=$(generate_hostname)
 
-    log_info "Connecting to Tailscale network with hostname: ${hostname}"
-    tailscale up --hostname="$hostname"
+    log_info "Connecting to Tailscale network..."
+
+    # Initial connection with just the hostname
+    if ! tailscale up --reset --hostname="$hostname"; then
+        log_error "Failed initial connection"
+        return 1
+    fi
 
     # Wait for connection and network to be established
-    local retries=15  # Increased retries
+    local retries=15
     while ((retries > 0)); do
         if tailscale status >/dev/null 2>&1; then
             local ip
             ip=$(tailscale ip)
-            log_info "Successfully connected to Tailscale network with IP: ${ip}"
+            log_info "Connected with IP: ${ip}"
 
             # Wait for network to stabilize
-            log_info "Waiting for network to stabilize..."
-            sleep 5
-
-            # Verify network is ready by checking status
-            if tailscale status | grep -q "^100\."; then
-                return 0
-            fi
+            sleep 3
+            return 0
         fi
         retries=$((retries - 1))
-        [[ $retries -gt 0 ]] && log_info "Waiting for Tailscale connection... (${retries} attempts remaining)"
+        [[ $retries -gt 0 ]] && log_info "Waiting for connection... (${retries} attempts remaining)"
         sleep 2
     done
 
-    log_error "Failed to establish Tailscale connection"
+    log_error "Failed to establish connection"
     return 1
 }
 
@@ -223,7 +224,7 @@ verify_network_readiness() {
     if ! echo "$status_json" | jq -e '.BackendState == "Running"' >/dev/null; then
         log_error "Tailscale backend is not running"
         return 1
-    fi  # Changed '}' to 'fi'
+    fi
 
     # Check if we have valid IPs
     if ! echo "$status_json" | jq -e '.TailscaleIPs | length > 0' >/dev/null; then
@@ -231,31 +232,48 @@ verify_network_readiness() {
         return 1
     fi
 
-    # Get interesting network information
+    # Get DERP region (relay server)
     local derp_region
     derp_region=$(echo "$status_json" | jq -r '.Self.Relay')
 
+    # Get connection type with improved detection
     local connection_type
     connection_type=$(echo "$status_json" | jq -r '
         .Peer | to_entries[] |
-        select(.value.Active == true) |
-        .value.CurAddr |
-        if . == "" then "relay" else "direct" end
+        select(.value.ExitNode == true) |
+        if .value.CurAddr != "" then
+            "direct (" + .value.CurAddr + ")"
+        elif .value.Relay != "" then
+            "relay via " + .value.Relay
+        else
+            "unknown"
+        end
     ')
 
+    # If no connection type was found, check if we're still initializing
+    if [[ -z "$connection_type" ]]; then
+        if echo "$status_json" | jq -e '.Self.InMagicSock == false' >/dev/null; then
+            connection_type="initializing"
+        else
+            connection_type="unknown"
+        fi
+    fi
+
+    # Count online and total peers
     local online_peers
     online_peers=$(echo "$status_json" | jq -r '[.Peer[] | select(.Online == true) | .HostName] | length')
 
     local total_peers
     total_peers=$(echo "$status_json" | jq -r '.Peer | length')
 
+    # Get DNS suffix
     local dns_suffix
     dns_suffix=$(echo "$status_json" | jq -r '.MagicDNSSuffix')
 
     # Display interesting information
     log_info "Network Information:"
     log_info "- DERP Region: ${derp_region:-unknown}"
-    log_info "- Connection Type: ${connection_type:-unknown}"
+    log_info "- Connection Type: ${connection_type}"
     log_info "- Online Peers: ${online_peers}/${total_peers}"
     log_info "- Magic DNS Suffix: ${dns_suffix}"
 
@@ -274,6 +292,7 @@ verify_network_readiness() {
     return 0
 }
 
+
 # Test connectivity to exit node
 verify_exit_node() {
     local exit_node_ip="$1"
@@ -281,17 +300,17 @@ verify_exit_node() {
 
     log_info "Verifying connectivity to exit node '${proxy_host}' (${exit_node_ip})..."
 
-    # Verify network readiness
+    # First ensure network is ready
     verify_network_readiness || return 1
 
     # Now test connectivity
-    log_info "Testing connectivity to exit node (${exit_node_ip})..."
+    log_info "Testing connectivity to exit node '${proxy_host}' (${exit_node_ip})..."
     local ping_attempts=3
     local attempt=1
 
     while ((attempt <= ping_attempts)); do
         if ping -c 1 -W 5 "$exit_node_ip" >/dev/null 2>&1; then
-            log_info "Successfully verified connectivity to exit node"
+            log_info "Successfully verified connectivity to exit node '${proxy_host}' (${exit_node_ip})"
             return 0
         fi
         log_info "Ping attempt ${attempt} failed, retrying..."
@@ -302,7 +321,6 @@ verify_exit_node() {
     log_error "Cannot reach exit node at ${exit_node_ip}"
     return 1
 }
-
 
 # Configure exit node
 configure_exit_node() {
@@ -409,11 +427,18 @@ verify_routing() {
     local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
     local proxy_host="${TAILSCALE_DEFAULT_PROXY_HOST:-devcontainerproxy}"
 
-    log_info "Verifying internet routing through exit node '${proxy_host}'"
-    log_info "Testing connectivity to: ${test_url}"
+    # Get the proxy IP from the environment instead of parameter
+    local proxy_ip
+    proxy_ip=$(tailscale status --json | jq -r --arg name "$proxy_host" '
+        .Peer | to_entries[] |
+        select(.value.HostName == $name) |
+        .value.TailscaleIPs[0]
+    ')
+
+    log_info "Verifying internet routing through exit node '${proxy_host}' (${proxy_ip})"
 
     # Test basic connectivity first
-    if ! test_connectivity "$test_url" "test URL" 4 5; then
+    if ! test_connectivity "$test_url" "test URL (${test_url})" 4 5; then
         return 1
     fi
 
@@ -423,17 +448,15 @@ verify_routing() {
         return 1
     fi
 
-    log_info "Successfully verified routing through exit node '${proxy_host}'"
+    log_info "Successfully verified routing through exit node '${proxy_host}' (${proxy_ip})"
     return 0
 }
-
 
 # Get network summary
 show_network_summary() {
     log_info "Tailscale Network Summary:"
     log_info "=========================="
 
-    # Get status in JSON format for parsing
     local status_json
     status_json=$(tailscale status --json)
 
@@ -442,46 +465,82 @@ show_network_summary() {
     my_hostname=$(echo "$status_json" | jq -r '.Self.HostName')
     local my_ip
     my_ip=$(echo "$status_json" | jq -r '.Self.TailscaleIPs[0]')
+    local my_derp
+    my_derp=$(echo "$status_json" | jq -r '.Self.Relay')
+    local my_created
+    my_created=$(echo "$status_json" | jq -r '.Self.Created' | cut -d'T' -f1)
 
     # Get proxy information
     local proxy_host="${TAILSCALE_DEFAULT_PROXY_HOST:-devcontainerproxy}"
-    local proxy_ip
-    proxy_ip=$(echo "$status_json" | jq -r --arg name "$proxy_host" '
+    local proxy_info
+    proxy_info=$(echo "$status_json" | jq -r --arg name "$proxy_host" '
         .Peer | to_entries[] |
         select(.value.HostName == $name) |
-        .value.TailscaleIPs[0]
+        {
+            ip: .value.TailscaleIPs[0],
+            conn: .value.CurAddr,
+            rx: .value.RxBytes,
+            tx: .value.TxBytes
+        }
     ')
+    local proxy_ip
+    proxy_ip=$(echo "$proxy_info" | jq -r '.ip')
+    local proxy_conn
+    proxy_conn=$(echo "$proxy_info" | jq -r '.conn')
+    local proxy_rx
+    proxy_rx=$(echo "$proxy_info" | jq -r '.rx')
+    local proxy_tx
+    proxy_tx=$(echo "$proxy_info" | jq -r '.tx')
 
     # Test routing
     local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
     local hop_count
     hop_count=$(traceroute -m 10 -w 2 "$test_url" 2>/dev/null | wc -l)
     if [[ $hop_count -gt 0 ]]; then
-        # Subtract 1 for the header line in traceroute output
         hop_count=$((hop_count - 1))
     fi
 
     # Output summary
-    log_info "DevContainer Hostname: ${my_hostname}"
-    log_info "DevContainer IP: ${my_ip}"
-    log_info "DevContainerProxy: ${proxy_host}"
-    log_info "DevContainerProxy IP: ${proxy_ip}"
-    log_info "Routing via ${proxy_host} to ${test_url} hops: ${hop_count}"
+    log_info "Container Configuration:"
+    log_info "- Hostname: ${my_hostname}"
+    log_info "- Tailscale IP: ${my_ip}"
+    log_info "- DERP Region: ${my_derp}"
+    log_info "- Created: ${my_created}"
+    log_info ""
+    log_info "Exit Node Status:"
+    log_info "- Host: ${proxy_host}"
+    log_info "- IP: ${proxy_ip}"
+    log_info "- Connection: ${proxy_conn:-relay}"
+    log_info "- Traffic: ↑${proxy_tx}B ↓${proxy_rx}B"
+    log_info ""
+    log_info "Routing Test:"
+    log_info "- Target: ${test_url}"
+    log_info "- Hops: ${hop_count}"
 
     # Check if hostname has a number suffix
     if [[ "$my_hostname" =~ -[0-9]+$ ]]; then
-        log_warn "Note: Your hostname has a numeric suffix. This means duplicate hostnames exist in your tailnet."
+        log_warn "Note: Your hostname has a numeric suffix (duplicate exists in tailnet)"
     fi
 }
+
 
 # Main startup process
 main() {
     log_info "Starting Tailscale setup process..."
 
-    # Check internet connectivity first
+    # First stop any existing daemon
+    log_info "Checking Tailscale daemon status..."
+    if pidof tailscaled >/dev/null; then
+        log_info "Stopping existing Tailscale daemon..."
+        pkill tailscaled || true
+        sleep 2
+    fi
+
+    # Check internet connectivity without Tailscale
     check_internet || exit 1
 
-    # Start daemon
+    # Now start the daemon
+    log_info "Starting Tailscale daemon..."
     start_daemon || exit 1
 
     # Connect to Tailscale
@@ -500,8 +559,11 @@ main() {
     # Final verification
     verify_routing || exit 1
 
-    log_info "Tailscale setup completed successfully"
+    # Show network summary
     show_network_summary
+
+    # Show completion message
+    log_info "======= > Tailscale setup completed successfully"
 }
 
 # Run main if script is executed directly
