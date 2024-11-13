@@ -13,8 +13,10 @@
     },
     "runArgs": [
         "--cap-add=NET_ADMIN",
-        "--device=/dev/net/tun:/dev/net/tun",
         "--cap-add=NET_RAW",
+        "--cap-add=SYS_ADMIN",
+        "--cap-add=AUDIT_WRITE",
+        "--device=/dev/net/tun:/dev/net/tun",
         "--privileged"
     ],
     "customizations": {

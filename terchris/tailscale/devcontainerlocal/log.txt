@@ -1,0 +1,33 @@
+
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | sudo tee /etc/apt/sources.list.d/tailscale.list
+
+sudo apt-get update
+
+sudo apt-get install tailscale
+
+# Create directories for tailscale
+sudo mkdir -p /var/run/tailscale
+sudo mkdir -p /var/lib/tailscale
+sudo mkdir -p /var/log
+
+# Start the tailscale daemon in background
+sudo sh -c 'nohup tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock >/var/log/tailscaled.log 2>&1 &'
+
+# Verify tailscaled is running
+ps aux | grep tailscaled
+
+# Connect to tailscale network, using devcontainerproxy as exit node
+sudo tailscale up \
+  --reset \
+  --exit-node=100.72.200.47 \
+  --hostname=1devcontainerlocal \
+  --accept-routes \
+  --accept-dns=true
+
+# Verify connection and routing
+tailscale status
+
+sudo apt-get install iputils-ping
+sudo apt-get install iproute2

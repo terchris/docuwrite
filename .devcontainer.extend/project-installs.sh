@@ -19,8 +19,6 @@ main() {
     check_npm_packages
 
 
-    # Set up Docker or Podman compatibility
-    setup_container_engine
 
     # Run project-specific installations
     install_project_tools
@@ -71,20 +69,6 @@ check_npm_packages() {
 }
 
 
-# Set up Docker or Podman CLI for compatibility
-setup_container_engine() {
-    if command -v docker >/dev/null 2>&1; then
-        echo "🐳 Docker is installed. No further setup required."
-    elif command -v podman >/dev/null 2>&1; then
-        echo "🔧 Podman detected. Setting up Docker CLI compatibility for Podman..."
-        sudo ln -sfn $(which podman) /usr/local/bin/docker
-        export DOCKER_HOST="unix:///run/user/1000/podman/podman.sock"
-        echo "✅ Docker CLI has been aliased to Podman"
-    else
-        echo "❌ Neither Docker nor Podman is installed"
-        exit 1
-    fi
-}
 
 
 # Run project-specific installations
