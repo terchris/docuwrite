@@ -161,7 +161,10 @@ install_tailscale() {
         iptables \
         iproute2 \
         iputils-ping \
+        traceroute \
         >/dev/null 2>&1
+
+
 
     # Install Tailscale
     curl -fsSL https://tailscale.com/install.sh | sh
