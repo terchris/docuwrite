@@ -211,6 +211,69 @@ find_exit_node() {
     return 0
 }
 
+
+# Verify network readiness and get status
+verify_network_readiness() {
+    log_info "Verifying network readiness..."
+
+    local status_json
+    status_json=$(tailscale status --json)
+
+    # Check if we're actually connected
+    if ! echo "$status_json" | jq -e '.BackendState == "Running"' >/dev/null; then
+        log_error "Tailscale backend is not running"
+        return 1
+    fi  # Changed '}' to 'fi'
+
+    # Check if we have valid IPs
+    if ! echo "$status_json" | jq -e '.TailscaleIPs | length > 0' >/dev/null; then
+        log_error "No Tailscale IPs assigned"
+        return 1
+    fi
+
+    # Get interesting network information
+    local derp_region
+    derp_region=$(echo "$status_json" | jq -r '.Self.Relay')
+
+    local connection_type
+    connection_type=$(echo "$status_json" | jq -r '
+        .Peer | to_entries[] |
+        select(.value.Active == true) |
+        .value.CurAddr |
+        if . == "" then "relay" else "direct" end
+    ')
+
+    local online_peers
+    online_peers=$(echo "$status_json" | jq -r '[.Peer[] | select(.Online == true) | .HostName] | length')
+
+    local total_peers
+    total_peers=$(echo "$status_json" | jq -r '.Peer | length')
+
+    local dns_suffix
+    dns_suffix=$(echo "$status_json" | jq -r '.MagicDNSSuffix')
+
+    # Display interesting information
+    log_info "Network Information:"
+    log_info "- DERP Region: ${derp_region:-unknown}"
+    log_info "- Connection Type: ${connection_type:-unknown}"
+    log_info "- Online Peers: ${online_peers}/${total_peers}"
+    log_info "- Magic DNS Suffix: ${dns_suffix}"
+
+    # Get connection health
+    local health_issues
+    health_issues=$(echo "$status_json" | jq -r '.Health[] | select(.Severity != "none") | .Message' 2>/dev/null)
+    if [[ -n "$health_issues" ]]; then
+        log_warn "Health Issues Detected:"
+        while IFS= read -r issue; do
+            log_warn "- ${issue}"
+        done <<< "$health_issues"
+    else
+        log_info "No health issues detected"
+    fi
+
+    return 0
+}
+
 # Test connectivity to exit node
 verify_exit_node() {
     local exit_node_ip="$1"
@@ -218,10 +281,8 @@ verify_exit_node() {
 
     log_info "Verifying connectivity to exit node '${proxy_host}' (${exit_node_ip})..."
 
-    # First ensure network is ready by checking status
-    log_info "Verifying network status..."
-    tailscale status
-    sleep 2
+    # Verify network readiness
+    verify_network_readiness || return 1
 
     # Now test connectivity
     log_info "Testing connectivity to exit node (${exit_node_ip})..."
@@ -260,8 +321,9 @@ configure_exit_node() {
     # Use environment variable for LAN access setting
     local lan_access="${TAILSCALE_EXIT_NODE_ALLOW_LAN:-true}"
 
-    # Configure exit node
+    # Configure exit node with --reset to handle existing settings
     if ! tailscale up \
+        --reset \
         --hostname="$hostname" \
         --exit-node="$exit_node_ip" \
         --exit-node-allow-lan-access="$lan_access"; then
@@ -269,19 +331,41 @@ configure_exit_node() {
         return 1
     fi
 
-    # Verify the configuration was applied
-    local status_json
-    status_json=$(tailscale status --json)
+    # Wait for configuration to apply
+    log_info "Waiting for exit node configuration to apply..."
+    local retries=10
+    while ((retries > 0)); do
+        # Get current status
+        local status_json
+        status_json=$(tailscale status --json)
 
-    # Check if it's the active exit node
-    local current_exit_node
-    current_exit_node=$(echo "$status_json" | jq -r '.ExitNode // ""')
-    if [[ "$current_exit_node" != "$exit_node_ip" ]]; then
-        log_error "Exit node configuration not applied. Expected: ${exit_node_ip}, Got: ${current_exit_node}"
+        # Check ExitNodeStatus instead of ExitNode
+        if jq -e --arg ip "$exit_node_ip" '.ExitNodeStatus.TailscaleIPs[] | select(. | startswith($ip))' <<< "$status_json" >/dev/null; then
+            log_info "Exit node configuration successfully applied"
+            return 0
+        fi
+
+        # If not configured yet, wait and retry
+        retries=$((retries - 1))
+        if ((retries > 0)); then
+            log_info "Waiting for exit node configuration... (${retries} attempts remaining)"
+            sleep 2
+        fi
+    done
+
+    if ((retries == 0)); then
+        log_error "Timed out waiting for exit node configuration"
+
+        # Check if routes are set up despite status not showing
+        if ip route | grep -q "default.*via.*$exit_node_ip"; then
+            log_info "Exit node routes appear to be configured correctly despite status mismatch"
+            return 0
+        fi
+
+        log_error "Exit node configuration failed to apply"
         return 1
     fi
 
-    log_info "Successfully configured '${proxy_host}' as exit node"
     return 0
 }
 
@@ -343,26 +427,51 @@ verify_routing() {
     return 0
 }
 
-# Display final status
-show_network_status() {
-    log_info "Current Tailscale Network Status:"
-    log_info "================================"
 
-    # Show current IP
+# Get network summary
+show_network_summary() {
+    log_info "Tailscale Network Summary:"
+    log_info "=========================="
+
+    # Get status in JSON format for parsing
+    local status_json
+    status_json=$(tailscale status --json)
+
+    # Get self information
+    local my_hostname
+    my_hostname=$(echo "$status_json" | jq -r '.Self.HostName')
     local my_ip
-    my_ip=$(tailscale ip)
-    log_info "Local Tailscale IP: ${my_ip}"
+    my_ip=$(echo "$status_json" | jq -r '.Self.TailscaleIPs[0]')
 
-    # Show exit node info
-    local exit_node_info
-    exit_node_info=$(tailscale exit-node list 2>/dev/null | grep "selected" || true)
-    if [[ -n "$exit_node_info" ]]; then
-        log_info "Active Exit Node: ${exit_node_info}"
+    # Get proxy information
+    local proxy_host="${TAILSCALE_DEFAULT_PROXY_HOST:-devcontainerproxy}"
+    local proxy_ip
+    proxy_ip=$(echo "$status_json" | jq -r --arg name "$proxy_host" '
+        .Peer | to_entries[] |
+        select(.value.HostName == $name) |
+        .value.TailscaleIPs[0]
+    ')
+
+    # Test routing
+    local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
+    local hop_count
+    hop_count=$(traceroute -m 10 -w 2 "$test_url" 2>/dev/null | wc -l)
+    if [[ $hop_count -gt 0 ]]; then
+        # Subtract 1 for the header line in traceroute output
+        hop_count=$((hop_count - 1))
     fi
 
-    # Show full status
-    log_info "Full Network Status:"
-    tailscale status
+    # Output summary
+    log_info "DevContainer Hostname: ${my_hostname}"
+    log_info "DevContainer IP: ${my_ip}"
+    log_info "DevContainerProxy: ${proxy_host}"
+    log_info "DevContainerProxy IP: ${proxy_ip}"
+    log_info "Routing via ${proxy_host} to ${test_url} hops: ${hop_count}"
+
+    # Check if hostname has a number suffix
+    if [[ "$my_hostname" =~ -[0-9]+$ ]]; then
+        log_warn "Note: Your hostname has a numeric suffix. This means duplicate hostnames exist in your tailnet."
+    fi
 }
 
 # Main startup process
@@ -392,7 +501,7 @@ main() {
     verify_routing || exit 1
 
     log_info "Tailscale setup completed successfully"
-    show_network_status
+    show_network_summary
 }
 
 # Run main if script is executed directly
