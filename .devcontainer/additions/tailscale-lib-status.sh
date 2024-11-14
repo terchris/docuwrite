@@ -198,41 +198,7 @@ validate_tailscale_config() {
     return 0
 }
 
-# Get peer information
-get_peer_info() {
-    local peer_id="$1"
-    local status_json
-    status_json=$(get_tailscale_status)
 
-    local peer_info
-    peer_info=$(echo "$status_json" | jq --arg id "$peer_id" '.Peer[$id]')
-
-    if [[ -z "$peer_info" || "$peer_info" == "null" ]]; then
-        return 1
-    fi
-
-    echo "$peer_info"
-    return 0
-}
-
-# Monitor Tailscale health
-check_tailscale_health() {
-    local status_json
-    status_json=$(get_tailscale_status true)  # Force refresh
-
-    local health_issues
-    health_issues=$(echo "$status_json" | jq -r '.Health[] | select(.Severity != "none") | .Message')
-
-    if [[ -n "$health_issues" ]]; then
-        log_warn "Tailscale health issues detected:"
-        while IFS= read -r issue; do
-            log_warn "- $issue"
-        done <<< "$health_issues"
-        return 1
-    fi
-
-    return 0
-}
 
 # Generate status summary
 generate_status_summary() {
@@ -312,5 +278,5 @@ detect_connection_type() {
 # Export required functions
 export -f get_tailscale_status parse_status_field check_tailscale_running
 export -f get_tailscale_ips get_connection_info validate_tailscale_config
-export -f get_peer_info check_tailscale_health generate_status_summary
+export -f generate_status_summary
 export -f generate_unique_hostname detect_connection_type

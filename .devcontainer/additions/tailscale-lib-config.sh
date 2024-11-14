@@ -316,16 +316,6 @@ get_configuration_field() {
     return 0
 }
 
-save_connection_state() {
-    local hostname="$1"
-    local connection_type
-    connection_type=$(detect_connection_type)
-
-    save_state "hostname" "$hostname"
-    save_state "connection_type" "$connection_type"
-
-    return 0
-}
 
 collect_final_state() {
     log_info "Collecting final state..."
@@ -347,4 +337,4 @@ collect_final_state() {
 # Export required functions
 export -f save_initial_state save_final_state generate_configuration
 export -f load_configuration validate_configuration update_configuration
-export -f get_configuration_field save_connection_state collect_final_state
+export -f get_configuration_field collect_final_state

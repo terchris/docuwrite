@@ -222,58 +222,7 @@ verify_exit_routing() {
     return 0
 }
 
-# Monitor exit node health
-monitor_exit_node() {
-    local exit_node_info="$1"
-
-    local proxy_host
-    proxy_host=$(echo "$exit_node_info" | jq -r '.hostname')
-    local exit_node_ip
-    exit_node_ip=$(echo "$exit_node_info" | jq -r '.ip')
-
-    # Get current status
-    local status_json
-    status_json=$(get_tailscale_status true)
-
-    # Check if exit node is still online
-    if ! echo "$status_json" | jq -e --arg ip "$exit_node_ip" \
-        '.ExitNodeStatus.Online == true' >/dev/null; then
-        log_error "Exit node is offline"
-        return "$EXIT_EXITNODE_ERROR"
-    fi
-
-    # Check connection type
-    local connection_type
-    connection_type=$(echo "$status_json" | jq -r --arg ip "$exit_node_ip" '
-        .Peer[] | select(.TailscaleIPs[0] == $ip) |
-        if .CurAddr != "" then "direct"
-        elif .Relay != "" then "relay"
-        else "unknown" end
-    ')
-
-    local relay_server
-    relay_server=$(echo "$status_json" | jq -r --arg ip "$exit_node_ip" \
-        '.Peer[] | select(.TailscaleIPs[0] == $ip) | .Relay')
-
-    # Generate health report
-    jq -n \
-        --arg host "$proxy_host" \
-        --arg ip "$exit_node_ip" \
-        --arg conn "$connection_type" \
-        --arg relay "${relay_server:-none}" \
-        '{
-            exitNode: {
-                hostname: $host,
-                ip: $ip,
-                connectionType: $conn,
-                relayServer: $relay,
-                timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-            }
-        }'
-
-    return 0
-}
 
 # Export required functions
 export -f find_exit_node setup_exit_node
-export -f verify_exit_routing monitor_exit_node
+export -f verify_exit_routing

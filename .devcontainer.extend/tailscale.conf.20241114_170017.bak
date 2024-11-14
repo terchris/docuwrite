@@ -5,7 +5,7 @@
     "dnsName": "devcontainer-terje-christensen-2.taile269d.ts.net.",
     "tailscaleIP": "100.77.95.109",
     "created": "2024-11-14",
-    "derpRegion": "fra"
+    "derpRegion": "waw"
   },
   "tailnet": {
     "name": "businessmodel.io",
@@ -22,7 +22,7 @@
     "ip": "100.93.44.54",
     "connection": "192.168.68.83:41641",
     "traffic": {
-      "rx": 6492,
+      "rx": 6524,
       "tx": 6644
     }
   },
@@ -40,7 +40,7 @@
     "initial": {},
     "final": {
       "version": "1.0.0",
-      "timestamp": "2024-11-14T17:00:17Z",
+      "timestamp": "2024-11-14T16:45:29Z",
       "status": {
         "Version": "1.76.6-t1edcf9d46-gd0a6cd8b2",
         "TUN": true,
@@ -53,7 +53,7 @@
         ],
         "Self": {
           "ID": "nxHyvLScZA11CNTRL",
-          "PublicKey": "nodekey:c044d01d0dcfc3e4e7db0c35845950f7a8ed1116274ea7e1c2703a750c0afa11",
+          "PublicKey": "nodekey:ff1b6b7798a827cf579296eb07a6204a1e529369620d60e7132e94a765cd4173",
           "HostName": "devcontainer-terje-christensen",
           "DNSName": "devcontainer-terje-christensen-2.taile269d.ts.net.",
           "OS": "linux",
@@ -67,12 +67,11 @@
             "fd7a:115c:a1e0::4101:5f6e/128"
           ],
           "Addrs": [
-            "88.91.80.102:64060",
-            "88.91.80.102:55934",
-            "10.88.0.70:34750"
+            "88.91.80.102:51081",
+            "10.88.0.70:49262"
           ],
           "CurAddr": "",
-          "Relay": "fra",
+          "Relay": "waw",
           "RxBytes": 0,
           "TxBytes": 0,
           "Created": "2024-11-14T12:23:03.196158867Z",
@@ -111,7 +110,7 @@
           "InNetworkMap": true,
           "InMagicSock": false,
           "InEngine": false,
-          "KeyExpiry": "2025-05-13T17:00:11Z"
+          "KeyExpiry": "2025-05-13T16:45:23Z"
         },
         "ExitNodeStatus": {
           "ID": "niTCnC2mgA11CNTRL",
@@ -378,12 +377,12 @@
             "Addrs": null,
             "CurAddr": "192.168.68.83:41641",
             "Relay": "ams",
-            "RxBytes": 6492,
+            "RxBytes": 6524,
             "TxBytes": 6644,
             "Created": "2024-11-13T07:28:23.683251007Z",
-            "LastWrite": "2024-11-14T17:00:17.699715041Z",
+            "LastWrite": "2024-11-14T16:45:29.352742837Z",
             "LastSeen": "0001-01-01T00:00:00Z",
-            "LastHandshake": "2024-11-14T17:00:15.367291292Z",
+            "LastHandshake": "2024-11-14T16:45:26.739065285Z",
             "Online": true,
             "ExitNode": true,
             "ExitNodeOption": true,
@@ -608,7 +607,7 @@
             ],
             "Addrs": null,
             "CurAddr": "",
-            "Relay": "ams",
+            "Relay": "lhr",
             "RxBytes": 0,
             "TxBytes": 0,
             "Created": "2024-11-13T09:31:09.094460665Z",
@@ -688,7 +687,7 @@
             "TxBytes": 0,
             "Created": "2024-03-31T20:21:18.270127485Z",
             "LastWrite": "0001-01-01T00:00:00Z",
-            "LastSeen": "2024-11-14T16:50:50.1Z",
+            "LastSeen": "2024-11-14T16:31:45.1Z",
             "LastHandshake": "0001-01-01T00:00:00Z",
             "Online": false,
             "ExitNode": false,
@@ -799,7 +798,7 @@
         "ClientVersion": null
       },
       "network": {
-        "timestamp": "2024-11-14T17:00:17Z",
+        "timestamp": "2024-11-14T16:45:29Z",
         "defaultInterface": "eth0",
         "interfaces": [
           {
@@ -822,19 +821,19 @@
             "ipv6_scope": "0x20",
             "ipv6_type": "link",
             "metric": null,
-            "rx_packets": 39633,
+            "rx_packets": 37841,
             "rx_errors": 0,
             "rx_dropped": 0,
             "rx_overruns": 0,
             "rx_frame": 0,
-            "tx_packets": 37126,
+            "tx_packets": 35040,
             "tx_errors": 0,
             "tx_dropped": 0,
             "tx_overruns": 0,
             "tx_carrier": 0,
             "tx_collisions": 0,
-            "rx_bytes": 47691895,
-            "tx_bytes": 4955634,
+            "rx_bytes": 47349018,
+            "tx_bytes": 4557885,
             "ipv4": [
               {
                 "address": "10.88.0.70",
@@ -870,19 +869,19 @@
             "ipv6_scope": "0x10",
             "ipv6_type": "host",
             "metric": null,
-            "rx_packets": 153934,
+            "rx_packets": 138041,
             "rx_errors": 0,
             "rx_dropped": 0,
             "rx_overruns": 0,
             "rx_frame": 0,
-            "tx_packets": 153934,
+            "tx_packets": 138041,
             "tx_errors": 0,
             "tx_dropped": 0,
             "tx_overruns": 0,
             "tx_carrier": 0,
             "tx_collisions": 0,
-            "rx_bytes": 114387207,
-            "tx_bytes": 114387207,
+            "rx_bytes": 106338557,
+            "tx_bytes": 106338557,
             "ipv4": [
               {
                 "address": "127.0.0.1",
@@ -915,7 +914,7 @@
             "ipv4_addr": "100.77.95.109",
             "ipv4_mask": "255.255.255.255",
             "ipv4_bcast": null,
-            "ipv6_addr": "fe80::d6b7:660c:242c:489f",
+            "ipv6_addr": "fe80::75f5:f119:e455:a510",
             "ipv6_mask": 64,
             "ipv6_scope": "0x20",
             "ipv6_type": "link",
@@ -931,8 +930,8 @@
             "tx_overruns": 0,
             "tx_carrier": 0,
             "tx_collisions": 0,
-            "rx_bytes": 5666,
-            "tx_bytes": 5553,
+            "rx_bytes": 5696,
+            "tx_bytes": 5551,
             "ipv4": [
               {
                 "address": "100.77.95.109",
@@ -948,7 +947,7 @@
                 "type": "global"
               },
               {
-                "address": "fe80::d6b7:660c:242c:489f",
+                "address": "fe80::75f5:f119:e455:a510",
                 "mask": 64,
                 "scope": "0x20",
                 "type": "link"
@@ -998,7 +997,7 @@
             "100.77.95.109",
             "fd7a:115c:a1e0::4101:5f6e"
           ],
-          "derpRegion": "fra",
+          "derpRegion": "waw",
           "online": true,
           "exitNode": false
         },
@@ -1011,9 +1010,9 @@
           ]
         },
         "connectionType": "relay",
-        "lastUpdate": "2024-11-14T17:00:17Z"
+        "lastUpdate": "2024-11-14T16:45:29Z"
       }
     }
   },
-  "configGenerated": "2024-11-14T17:00:17Z"
+  "configGenerated": "2024-11-14T16:45:29Z"
 }

@@ -21,22 +21,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
-# Display network trace information
-display_trace_info() {
-    local trace_json="$1"
-    local description="$2"
-
-    log_info "${description:-Network trace information}:"
-
-    echo "$trace_json" | jq -r '
-        "Target: \(.target)",
-        "Hops: \(.hops | length)",
-        "Path:",
-        (.hops[] | "  \(.hop). \(.host) (\(.ip)) \(.times | join("ms, "))ms")
-    ' | while IFS= read -r line; do
-        log_info "$line"
-    done
-}
 
 # Display configuration summary
 display_configuration() {
@@ -143,84 +127,6 @@ display_setup_progress() {
     log_info ""
 }
 
-# Display connection status
-display_connection_status() {
-    local status_json="$1"
-
-    log_info "Connection Status:"
-    log_info "=================="
-
-    # Connection type
-    local conn_type
-    conn_type=$(echo "$status_json" | jq -r '
-        if .Self.CurAddr != "" then "direct (\(.Self.CurAddr))"
-        elif .Self.Relay != "" then "via relay (\(.Self.Relay))"
-        else "unknown"
-        end
-    ')
-    log_info "Connection Type: $conn_type"
-
-    # DERP region
-    local derp_region
-    derp_region=$(echo "$status_json" | jq -r '.Self.Relay')
-    if [[ -n "$derp_region" && "$derp_region" != "null" ]]; then
-        log_info "DERP Region: $derp_region"
-    fi
-
-    # Peer connections
-    local peer_count
-    peer_count=$(echo "$status_json" | jq '.Peer | length')
-    local online_peers
-    online_peers=$(echo "$status_json" | jq '[.Peer[] | select(.Online == true)] | length')
-    log_info "Peers: $online_peers online of $peer_count total"
-}
-
-# Generate health report
-generate_health_report() {
-    local status_json="$1"
-    local network_state="$2"
-    local output_file="${3:-${TAILSCALE_LOG_BASE}/health_report.txt}"
-
-    log_info "Generating health report..."
-
-    {
-        echo "Tailscale Health Report"
-        echo "======================="
-        echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-        echo
-
-        # System Status
-        echo "System Status:"
-        echo "-------------"
-        echo "Version: $(echo "$status_json" | jq -r '.Version')"
-        echo "Backend State: $(echo "$status_json" | jq -r '.BackendState')"
-        echo
-
-        # Network Status
-        echo "Network Status:"
-        echo "--------------"
-        local default_if
-        default_if=$(echo "$network_state" | jq -r '.defaultInterface')
-        echo "Default Interface: $default_if"
-        echo "Routes:"
-        echo "$network_state" | jq -r '.routing.routes[] | "  \(.dst // "default") via \(.gateway // "direct")"'
-        echo
-
-        # Health Issues
-        echo "Health Issues:"
-        echo "--------------"
-        if echo "$status_json" | jq -e '.Health[] | select(.Severity != "none")' >/dev/null; then
-            echo "$status_json" | jq -r '.Health[] | select(.Severity != "none") | "\(.Severity): \(.Message)"'
-        else
-            echo "No health issues detected"
-        fi
-
-    } > "$output_file"
-
-    log_info "Health report saved to: ${output_file}"
-    return 0
-}
-
 # Generate setup report
 generate_setup_report() {
     local config_json="$1"
@@ -290,6 +196,6 @@ display_completion_summary() {
 }
 
 # Export required functions
-export -f display_trace_info display_configuration display_network_changes
-export -f display_setup_progress display_connection_status
-export -f generate_health_report generate_setup_report display_completion_summary
+export -f display_configuration display_network_changes
+export -f display_setup_progress
+export -f generate_setup_report display_completion_summary

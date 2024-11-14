@@ -49,12 +49,10 @@ verify_network_state() {
             ;;
         full)
             check_basic_connectivity && \
-            check_udp_connectivity && \
             check_network_interfaces
             ;;
         pre-tailscale)
             check_basic_connectivity && \
-            check_udp_connectivity && \
             verify_tun_device && \
             check_network_interfaces
             ;;
@@ -114,37 +112,6 @@ check_basic_connectivity() {
    return "$EXIT_NETWORK_ERROR"
 }
 
-# Check UDP connectivity
-check_udp_connectivity() {
-    local port="${1:-53}"
-    local target="${2:-${DEFAULT_DNS_SERVERS[0]}}"
-    local attempts="${3:-3}"
-
-    log_info "Testing UDP connectivity to $target:$port..."
-
-    # Ensure netcat is available
-    if ! command -v nc >/dev/null; then
-        log_error "netcat (nc) not found, installing..."
-        if ! apt-get update -qq && apt-get install -y netcat-openbsd >/dev/null 2>&1; then
-            log_error "Failed to install netcat"
-            return "$EXIT_NETWORK_ERROR"
-        fi
-    fi
-
-    local attempt=1
-    while ((attempt <= attempts)); do
-        if nc -zu "$target" "$port" -w 1 >/dev/null 2>&1; then
-            log_info "UDP connectivity test successful"
-            return 0
-        fi
-        log_debug "UDP connectivity attempt $attempt failed, retrying..."
-        attempt=$((attempt + 1))
-        sleep 1
-    done
-
-    log_warn "UDP connectivity might be restricted"
-    return 1
-}
 
 # Verify TUN device
 verify_tun_device() {
@@ -199,42 +166,7 @@ check_network_interfaces() {
     return 0
 }
 
-# Collect network interface information
-collect_interface_info() {
-    local interface="$1"
-    log_info "Collecting interface information for $interface..."
 
-    jq -n \
-        --arg name "$interface" \
-        --arg state "$(ip link show "$interface" | grep -o 'state [A-Z]*' | cut -d' ' -f2)" \
-        --arg addrs "$(ip addr show "$interface" | grep -w inet | awk '{print $2}')" \
-        --arg flags "$(ip link show "$interface" | grep -o 'FLAGS.*' | cut -d' ' -f1)" \
-        '{
-            name: $name,
-            state: $state,
-            addresses: ($addrs | split("\n") | map(select(length > 0))),
-            flags: $flags,
-            timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-        }'
-}
-
-
-# Collect route information
-collect_route_info() {
-    log_info "Collecting routing information..."
-
-    # Create a JSON array of routes manually since ip -j may not be available
-    local routes
-    routes=$(ip route show | jq -R -s 'split("\n") | map(select(length > 0))')
-
-    jq -n \
-        --argjson routes "$routes" \
-        '{
-            routes: $routes,
-            default: ($routes | map(select(contains("default"))) | .[0] // null),
-            timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-        }'
-}
 
 # Collect complete network state
 collect_network_state() {
@@ -460,6 +392,6 @@ establish_tailscale_connection() {
 
 # Export required functions
 export -f verify_network_state check_basic_connectivity
-export -f check_udp_connectivity verify_tun_device check_network_interfaces
-export -f collect_interface_info collect_route_info collect_network_state
+export -f verify_tun_device check_network_interfaces
+export -f collect_network_state
 export -f trace_route collect_initial_state start_tailscale_daemon stop_tailscale_daemon establish_tailscale_connection
