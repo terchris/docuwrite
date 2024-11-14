@@ -3,10 +3,10 @@
 #
 # Purpose: Starts and configures Tailscale in a devcontainer with proper sequencing
 #
-# Usage: sudo .devcontainer/additions/tailscale-start.sh [--force]
-#
-# Options:
-#   --force    Force restart if already running
+# Usage: sudo .devcontainer/additions/tailscale-start.sh
+# Uses config file: .devcontainer.extend/tailscale.env
+# Writes config after connected to: .devcontainer.extend/tailscale.conf
+
 
 set -euo pipefail
 
@@ -30,20 +30,6 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Parse arguments
-FORCE_RESTART=false
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --force)
-            FORCE_RESTART=true
-            shift
-            ;;
-        *)
-            log_error "Unknown argument: $1"
-            exit 1
-            ;;
-    esac
-done
 
 # Basic network test function
 test_connectivity() {
@@ -104,10 +90,6 @@ start_daemon() {
     log_info "Checking Tailscale daemon status..."
 
     if pidof tailscaled >/dev/null; then
-        if [[ "$FORCE_RESTART" != "true" ]]; then
-            log_error "Tailscale daemon is already running. Use --force to restart"
-            return 1
-        fi
         log_info "Stopping existing Tailscale daemon..."
         pkill tailscaled || true
         sleep 2
@@ -131,51 +113,146 @@ start_daemon() {
     return 1
 }
 
-
-# Initial Tailscale connection
-# Connect to Tailscale
 connect_tailscale() {
     local hostname
     hostname=$(generate_hostname)
+    local max_retries=3
+    local retry_count=0
+    local connected=false
 
-    log_info "Connecting to Tailscale network..."
+    log_info "Connecting to Tailscale network as '${hostname}'..."
 
-    # Initial connection with just the hostname
-    if ! tailscale up --reset --hostname="$hostname"; then
-        log_error "Failed initial connection"
+    # Check existing connections and clean up if needed
+    if tailscale status >/dev/null 2>&1; then
+        log_info "Found existing Tailscale connection, logging out..."
+        tailscale logout
+        sleep 2
+    fi
+
+    # Attempt connection with retries
+    while ((retry_count < max_retries)) && [[ "$connected" != "true" ]]; do
+        retry_count=$((retry_count + 1))
+
+        # Force the hostname we want
+        if ! tailscale up --reset --force-reauth --hostname="$hostname"; then
+            log_error "Connection attempt ${retry_count} failed"
+            sleep 2
+            continue
+        fi
+
+        # Wait for connection to stabilize
+        sleep 3
+
+        # Verify connection and hostname
+        local status_json
+        if ! status_json=$(tailscale status --json); then
+            log_error "Failed to get Tailscale status"
+            continue
+        fi
+
+        # Check if we're actually connected
+        if ! echo "$status_json" | jq -e '.BackendState == "Running"' >/dev/null; then
+            log_error "Tailscale backend is not running"
+            continue
+        fi
+
+        # Verify hostname
+        local assigned_hostname
+        assigned_hostname=$(echo "$status_json" | jq -r '.Self.HostName')
+        if [[ "$assigned_hostname" != "$hostname" ]]; then
+            log_error "Got unexpected hostname: $assigned_hostname (wanted: $hostname)"
+            continue
+        fi
+
+        # Get our assigned IP
+        local ip
+        ip=$(echo "$status_json" | jq -r '.Self.TailscaleIPs[0]')
+        if [[ -z "$ip" || "$ip" == "null" ]]; then
+            log_error "No Tailscale IP assigned"
+            continue
+        fi
+
+        log_info "Connected successfully as '${hostname}' with IP: ${ip}"
+        connected=true
+
+
+    done
+
+    if [[ "$connected" != "true" ]]; then
+        log_error "Failed to establish connection after ${max_retries} attempts"
         return 1
     fi
 
-    # Wait for connection and network to be established
-    local retries=15
-    while ((retries > 0)); do
-        if tailscale status >/dev/null 2>&1; then
-            local ip
-            ip=$(tailscale ip)
-            log_info "Connected with IP: ${ip}"
-
-            # Wait for network to stabilize
-            sleep 3
-            return 0
-        fi
-        retries=$((retries - 1))
-        [[ $retries -gt 0 ]] && log_info "Waiting for connection... (${retries} attempts remaining)"
-        sleep 2
-    done
-
-    log_error "Failed to establish connection"
-    return 1
+    return 0
 }
 
+# Function to save Tailscale configuration
+save_tailscale_config() {
+    local status_json="$1"
+    local config_file="/workspace/.devcontainer.extend/tailscale.conf"
 
-# Find and verify exit node
+    log_info "Saving Tailscale configuration..."
+
+    # Extract configuration details
+    local config_json
+    config_json=$(echo "$status_json" | jq '{
+        containerIdentity: {
+            hostname: .Self.HostName,
+            dnsName: .Self.DNSName,
+            tailscaleIP: .Self.TailscaleIPs[0],
+            created: (.Self.Created | split("T")[0]),
+            derpRegion: .Self.Relay
+        },
+        tailnet: {
+            name: .CurrentTailnet.Name,
+            magicDNSSuffix: .CurrentTailnet.MagicDNSSuffix,
+            magicDNSEnabled: .CurrentTailnet.MagicDNSEnabled
+        },
+        userInfo: (.User | to_entries | .[0].value | {
+            loginName: .LoginName,
+            displayName: .DisplayName,
+            profilePicURL: .ProfilePicURL
+        }),
+        exitNode: ({
+            host: (.ExitNodeStatus | if . == null then null else
+                (.Peer[] | select(.ID == .ExitNodeStatus.ID) | .HostName) end),
+            ip: .ExitNodeStatus.TailscaleIPs[0],
+            connection: (.Peer[] | select(.ExitNode == true) | .CurAddr)
+        } // {}),
+        capabilities: .Self.CapMap
+    }')
+
+    # Create directory if it doesn't exist
+    mkdir -p "$(dirname "$config_file")"
+
+    # Save configuration
+    if ! echo "$config_json" | jq '.' > "$config_file"; then
+        log_error "Failed to save Tailscale configuration to ${config_file}"
+        return 1
+    fi
+
+    # Set appropriate permissions
+    chmod 600 "$config_file"
+
+    log_info "Tailscale configuration saved to ${config_file}"
+    return 0
+}
+
+# find the exit node and check that it is online
 find_exit_node() {
     local proxy_host="${TAILSCALE_DEFAULT_PROXY_HOST:-devcontainerproxy}"
     log_info "Looking for exit node: ${proxy_host}"
 
+    # Get status once
+    local status_json
+    if ! status_json=$(get_tailscale_status); then
+        log_error "Failed to get Tailscale status"
+        return 1
+    fi
+
     # Check if the node exists and has ExitNodeOption=true in status
     local exit_node_ip
-    exit_node_ip=$(tailscale status --json | jq -r --arg name "$proxy_host" '
+    exit_node_ip=$(echo "$status_json" | jq -r --arg name "$proxy_host" '
         .Peer | to_entries[] |
         select(.value.HostName == $name and .value.ExitNodeOption == true) |
         .value.TailscaleIPs[0]
@@ -186,7 +263,7 @@ find_exit_node() {
 
         # Show available exit nodes
         log_info "Available exit nodes:"
-        tailscale status --json | jq -r '
+        echo "$status_json" | jq -r '
             .Peer | to_entries[] |
             select(.value.ExitNodeOption == true) |
             "  \(.value.HostName): \(.value.TailscaleIPs[0]) (Online: \(.value.Online))"
@@ -196,7 +273,7 @@ find_exit_node() {
 
     # Verify the node is online
     local is_online
-    is_online=$(tailscale status --json | jq -r --arg name "$proxy_host" '
+    is_online=$(echo "$status_json" | jq -r --arg name "$proxy_host" '
         .Peer | to_entries[] |
         select(.value.HostName == $name) |
         .value.Online
@@ -211,7 +288,6 @@ find_exit_node() {
     echo "$exit_node_ip"
     return 0
 }
-
 
 # Verify network readiness and get status
 verify_network_readiness() {
@@ -524,6 +600,108 @@ show_network_summary() {
 }
 
 
+# Function to generate formatted summary and config from status JSON
+parse_tailscale_status() {
+    local status_json="$1"
+    local config_file="/workspace/.devcontainer.extend/tailscale.conf"
+
+    # Extract all required information into a single JSON structure
+    local summary_json
+    summary_json=$(echo "$status_json" | jq '{
+        containerIdentity: {
+            hostname: .Self.HostName,
+            dnsName: .Self.DNSName,
+            tailscaleIP: .Self.TailscaleIPs[0],
+            created: (.Self.Created | split("T")[0]),
+            derpRegion: .Self.Relay
+        },
+        tailnet: {
+            name: .CurrentTailnet.Name,
+            magicDNSSuffix: .MagicDNSSuffix,
+            magicDNSEnabled: .CurrentTailnet.MagicDNSEnabled
+        },
+        userInfo: (.User | to_entries[] | select(.value.LoginName != "tagged-devices") | .value | {
+            loginName: .LoginName,
+            displayName: .DisplayName,
+            profilePicURL: .ProfilePicURL
+        }),
+        exitNode: (
+            if .ExitNodeStatus != null then
+            .Peer[] | select(.ExitNode == true) |
+            {
+                host: .HostName,
+                ip: .TailscaleIPs[0],
+                connection: .CurAddr,
+                traffic: {
+                    rx: .RxBytes,
+                    tx: .TxBytes
+                }
+            }
+            else null end
+        ),
+        capabilities: .Self.CapMap
+    }')
+
+    # Save to file
+    echo "$summary_json" | jq '.' > "$config_file"
+    chmod 600 "$config_file"
+
+    # Display summary
+    log_info "Tailscale Network Summary:"
+    log_info "=========================="
+
+    # Container Configuration
+    log_info "Container Configuration:"
+    log_info "- Hostname: $(echo "$summary_json" | jq -r '.containerIdentity.hostname')"
+    log_info "- DNS Name: $(echo "$summary_json" | jq -r '.containerIdentity.dnsName')"
+    log_info "- Tailscale IP: $(echo "$summary_json" | jq -r '.containerIdentity.tailscaleIP')"
+    log_info "- DERP Region: $(echo "$summary_json" | jq -r '.containerIdentity.derpRegion')"
+    log_info "- Created: $(echo "$summary_json" | jq -r '.containerIdentity.created')"
+    log_info ""
+
+    # Tailnet Info
+    log_info "Tailnet Information:"
+    log_info "- Name: $(echo "$summary_json" | jq -r '.tailnet.name')"
+    log_info "- DNS Suffix: $(echo "$summary_json" | jq -r '.tailnet.magicDNSSuffix')"
+    log_info ""
+
+    # User Info
+    log_info "User Information:"
+    log_info "- Login: $(echo "$summary_json" | jq -r '.userInfo.loginName')"
+    log_info "- Name: $(echo "$summary_json" | jq -r '.userInfo.displayName')"
+    log_info ""
+
+    # Exit Node Status
+    log_info "Exit Node Status:"
+    if [[ "$(echo "$summary_json" | jq -r '.exitNode != null')" == "true" ]]; then
+        log_info "- Host: $(echo "$summary_json" | jq -r '.exitNode.host')"
+        log_info "- IP: $(echo "$summary_json" | jq -r '.exitNode.ip')"
+        log_info "- Connection: $(echo "$summary_json" | jq -r '.exitNode.connection')"
+        log_info "- Traffic: ↑$(echo "$summary_json" | jq -r '.exitNode.traffic.tx')B ↓$(echo "$summary_json" | jq -r '.exitNode.traffic.rx')B"
+    else
+        log_info "- No exit node configured"
+    fi
+    log_info ""
+
+    # Routing Test
+    log_info "Routing Test:"
+    log_info "- Target: ${TAILSCALE_TEST_URL:-www.sol.no}"
+    local hop_count
+    hop_count=$(traceroute -m 10 -w 2 "${TAILSCALE_TEST_URL:-www.sol.no}" 2>/dev/null | wc -l)
+    if [[ $hop_count -gt 0 ]]; then
+        hop_count=$((hop_count - 1))
+    fi
+    log_info "- Hops: ${hop_count}"
+
+    # Verify the file was created and has content
+    if [[ ! -s "$config_file" ]]; then
+        log_error "Failed to create configuration file"
+        return 1
+    fi
+
+    return 0
+}
+
 # Main startup process
 main() {
     log_info "Starting Tailscale setup process..."
@@ -540,7 +718,6 @@ main() {
     check_internet || exit 1
 
     # Now start the daemon
-    log_info "Starting Tailscale daemon..."
     start_daemon || exit 1
 
     # Connect to Tailscale
@@ -564,6 +741,20 @@ main() {
 
     # Show completion message
     log_info "======= > Tailscale setup completed successfully"
+
+    # Get final status and generate summary/config
+    local final_status
+    if ! final_status=$(tailscale status --json); then
+        log_error "Failed to get final Tailscale status"
+        exit 1
+    fi
+
+    if ! parse_tailscale_status "$final_status"; then
+        log_error "Failed to parse and save Tailscale configuration"
+        exit 1
+    fi
+
+    log_info "Tailscale configuration saved successfully"
 }
 
 # Run main if script is executed directly
