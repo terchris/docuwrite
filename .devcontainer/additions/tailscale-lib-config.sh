@@ -90,25 +90,19 @@ generate_configuration() {
     local status_json
     status_json=$(get_tailscale_status true)
 
-    # Verify JSON validity
-    if ! echo "$status_json" | jq '.' >/dev/null 2>&1; then
-        log_error "Invalid Tailscale status JSON"
-        return "$EXIT_ENV_ERROR"
-    fi
+    # Get network test data from captured states
+    local initial_state
+    initial_state=$(get_network_test_data "$INITIAL_STATE")
 
-    # Convert initial and final states to JSON if they are empty
-    [[ -z "$INITIAL_STATE" ]] && INITIAL_STATE="{}"
-    [[ -z "$FINAL_STATE" ]] && FINAL_STATE="{}"
+    local final_state
+    final_state=$(get_network_test_data "$FINAL_STATE")
 
-    log_info "Generating Tailscale configuration..."
-
-    # Create comprehensive configuration
     local config_json
     config_json=$(jq -n \
         --arg version "$CONFIG_SCHEMA_VERSION" \
         --argjson status "$status_json" \
-        --argjson initial "$INITIAL_STATE" \
-        --argjson final "$FINAL_STATE" \
+        --argjson initial "$initial_state" \
+        --argjson final "$final_state" \
         '{
             schemaVersion: $version,
             containerIdentity: {
@@ -124,11 +118,11 @@ generate_configuration() {
                 magicDNSEnabled: $status.CurrentTailnet.MagicDNSEnabled
             },
             userInfo: ($status.User | to_entries[] |
-                    select(.value.LoginName != "tagged-devices") |
-                    .value | {
-                loginName: .LoginName,
-                displayName: .DisplayName,
-                profilePicURL: .ProfilePicURL
+                select(.value.LoginName != "tagged-devices") |
+                .value | {
+                    loginName: .LoginName,
+                    displayName: .DisplayName,
+                    profilePicURL: .ProfilePicURL
             }),
             exitNode: (
                 if $status.ExitNodeStatus != null then
@@ -150,24 +144,28 @@ generate_configuration() {
                 final: $final
             },
             configGenerated: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-        }')
+        }'
+    )
 
-    # Create backup if file exists
-    if [[ -f "$config_file" ]]; then
-        local backup_file="${config_file}.$(date +%Y%m%d_%H%M%S).bak"
-        log_info "Creating backup of existing configuration: ${backup_file}"
-        cp "$config_file" "$backup_file" || log_warn "Failed to create backup"
-    fi
+    echo "$config_json" | jq '.' > "$config_file" && chmod 600 "$config_file"
+}
 
-    # Save configuration
-    if ! echo "$config_json" | jq '.' > "$config_file"; then
-        log_error "Failed to save configuration to ${config_file}"
-        return "$EXIT_ENV_ERROR"
-    fi
+get_network_test_data() {
+    local state_json="$1"
+    local ping_results
+    local trace_results
 
-    chmod 600 "$config_file"
-    log_info "Configuration saved to ${config_file}"
-    return 0
+    ping_results=$(get_ping_stats "$state_json")
+    trace_results=$(get_trace_data "$state_json")
+
+    jq -n \
+        --argjson ping "$ping_results" \
+        --argjson trace "$trace_results" \
+        '{
+            testDNS: $ping.dns,
+            testUrl: $ping.url,
+            traceroute: $trace
+        }'
 }
 
 # Load existing configuration
@@ -316,23 +314,28 @@ get_configuration_field() {
     return 0
 }
 
-
 collect_final_state() {
-    log_info "Collecting final state..."
+    log_info "Collecting final network state..."
+    local network_state
+    network_state=$(collect_network_state)
 
     local status_json
-    status_json=$(get_tailscale_status true) || return 1
-
-    local network_state
-    network_state=$(collect_network_state) || return 1
+    status_json=$(get_tailscale_status true)
 
     local exit_node_info
-    exit_node_info=$(get_connection_info) || return 1
+    exit_node_info=$(get_connection_info)
 
-    save_final_state "$status_json" "$network_state" "$exit_node_info"
-    return $?
+    # Combine all state information
+    jq -n \
+        --argjson network "$network_state" \
+        --argjson status "$status_json" \
+        --argjson exitnode "$exit_node_info" \
+        '{
+            network: $network,
+            status: $status,
+            exitNode: $exitnode
+        }'
 }
-
 
 # Export required functions
 export -f save_initial_state save_final_state generate_configuration

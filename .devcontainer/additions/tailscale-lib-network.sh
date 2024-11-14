@@ -36,6 +36,18 @@ readonly DEFAULT_DNS_SERVERS=(
     "208.67.222.222" # OpenDNS
 )
 
+
+print_connectivity_check() {
+    local result="$1"
+    local success=$2
+    local reachable=$(echo "$result" | jq -r '.reachable')
+    local latency=$(echo "$result" | jq -r '.latency')
+    local host=$(echo "$result" | jq -r '.host')
+    printf "Ping to %s: Reachable:%s (%sms)\n" "$host" "$reachable" "$latency"
+    return $success
+}
+
+
 # Primary network testing function that encompasses all checks
 verify_network_state() {
     local test_type="$1"  # basic, full, or pre-tailscale
@@ -45,16 +57,19 @@ verify_network_state() {
 
     case "$test_type" in
         basic)
-            check_basic_connectivity
+            result=$(check_basic_connectivity)
+            print_connectivity_check "$result" $?
             ;;
         full)
-            check_basic_connectivity && \
-            check_network_interfaces
+            result=$(check_basic_connectivity)
+            print_connectivity_check "$result" $?
             ;;
         pre-tailscale)
-            check_basic_connectivity && \
-            verify_tun_device && \
-            check_network_interfaces
+            result=$(check_basic_connectivity)
+            local success=$?
+            print_connectivity_check "$result" $success
+            [ $success -eq 0 ] && verify_tun_device
+            return $success
             ;;
         *)
             log_error "Unknown test type: $test_type"
@@ -64,54 +79,31 @@ verify_network_state() {
 }
 
 # Check basic internet connectivity
-# Check basic internet connectivity
 check_basic_connectivity() {
-   local target="${1:-${DEFAULT_DNS_SERVERS[0]}}"
-   local timeout="${2:-$DEFAULT_PING_TIMEOUT}"
-   local attempts="${3:-3}"
+    local target="${1:-${DEFAULT_DNS_SERVERS[0]}}"
+    local timeout="${2:-$DEFAULT_PING_TIMEOUT}"
+    local attempts="${3:-3}"
 
-   log_info "Checking basic connectivity to $target..."
+    local ping_data
+    ping_data=$(ping -c 1 -W "$timeout" "$target" 2>&1)
+    local ping_status=$?
 
-   # Use timeout command to ensure we don't hang
-   local ping_cmd="ping -c 1 -W $timeout $target"
-   local attempt=1
-   local last_error=""
+    local rtt=""
+    if [[ $ping_status -eq 0 ]]; then
+        rtt=$(echo "$ping_data" | grep -oP 'time=\K[0-9.]+')
+    fi
 
-   while ((attempt <= attempts)); do
-       if output=$(timeout $((timeout + 1)) $ping_cmd 2>&1); then
-           local rtt
-           rtt=$(echo "$output" | grep -oP 'time=\K[0-9.]+')
-           log_info "Basic connectivity test successful to $target (RTT: ${rtt}ms)"
-           return 0
-       else
-           local exit_code=$?
-           last_error=$(echo "$output" | tr -d '\n')
-
-           case $exit_code in
-               124|137) # timeout command exit codes
-                   log_debug "Attempt $attempt to $target: Connection timed out"
-                   ;;
-               2) # Host unreachable
-                   log_debug "Attempt $attempt to $target: Host unreachable"
-                   ;;
-               *)
-                   log_debug "Attempt $attempt to $target: Ping failed with code $exit_code"
-                   ;;
-           esac
-       fi
-
-       # Only sleep if we're going to try again
-       if ((attempt < attempts)); then
-           sleep 1
-       fi
-       attempt=$((attempt + 1))
-   done
-
-   log_error "Failed to establish basic connectivity to $target after $attempts attempts"
-   log_error "Last error: $last_error"
-   return "$EXIT_NETWORK_ERROR"
+    # Return structured JSON data
+    jq -n \
+        --arg host "$target" \
+        --arg reachable "$([ $ping_status -eq 0 ] && echo true || echo false)" \
+        --arg latency "${rtt:-0}" \
+        '{
+            host: $host,
+            reachable: $reachable,
+            latency: ($latency | tonumber)
+        }'
 }
-
 
 # Verify TUN device
 verify_tun_device() {
@@ -134,35 +126,48 @@ verify_tun_device() {
 }
 
 # Check network interfaces
-check_network_interfaces() {
-    log_info "Checking network interfaces..."
+collect_network_state() {
+    local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
+    local test_dns="${TEST_DNS:-${DEFAULT_DNS_SERVERS[0]}}"
 
-    # Get default route interface
-    local default_if
-    default_if=$(ip route show default | awk '/default/ {print $5}')
-    if [[ -z "$default_if" ]]; then
-        log_error "No default route interface found"
-        return "$EXIT_NETWORK_ERROR"
+    # DNS test using check_basic_connectivity
+    local dns_test
+    dns_test=$(check_basic_connectivity "$test_dns")
+    local dns_reachable=$(echo "$dns_test" | jq -r '.reachable')
+    local dns_latency=$(echo "$dns_test" | jq -r '.latency')
+    printf "Ping to central DNS (%s): Reachable:%s (%sms)\n" "$test_dns" "$dns_reachable" "$dns_latency" >&2
+
+    # URL test using check_basic_connectivity
+    local url_test
+    url_test=$(check_basic_connectivity "$test_url")
+    local url_reachable=$(echo "$url_test" | jq -r '.reachable')
+    local url_latency=$(echo "$url_test" | jq -r '.latency')
+    printf "Ping to test URL (%s): Reachable:%s (%sms)\n" "$test_url" "$url_reachable" "$url_latency" >&2
+
+    # Traceroute with jc
+    local trace_data
+    trace_data=$(trace_route "$test_url")
+    local successful_hops=$(echo "$trace_data" | jq '[.hops[] | select(.probes != [])] | length')
+    printf "Successful hops: %s\n" "$successful_hops" >&2
+
+    # Check if any of the tests failed
+    if [[ "$dns_reachable" != "true" ]] || [[ "$url_reachable" != "true" ]]; then
+        return 1
     fi
 
-    # Check interface state
-    local if_state
-    if_state=$(ip link show "$default_if" | grep -o "state [A-Z]*" | cut -d' ' -f2)
-    if [[ "$if_state" != "UP" ]]; then
-        log_error "Default interface $default_if is not UP (state: $if_state)"
-        return "$EXIT_NETWORK_ERROR"
-    fi
+    # Build and output the JSON response
+    jq -n \
+        --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        --argjson dns "$dns_test" \
+        --argjson url "$url_test" \
+        --argjson trace "$trace_data" \
+        '{
+            timestamp: $timestamp,
+            testDNS: $dns,
+            testUrl: $url,
+            traceroute: $trace
+        }'
 
-    # Get interface addresses
-    local if_addrs
-    if_addrs=$(ip addr show "$default_if" | grep -w inet)
-    if [[ -z "$if_addrs" ]]; then
-        log_error "No IPv4 addresses found on default interface $default_if"
-        return "$EXIT_NETWORK_ERROR"
-    fi
-
-    log_info "Network interface check successful"
-    log_debug "Default interface: $default_if ($if_state)"
     return 0
 }
 
@@ -170,38 +175,51 @@ check_network_interfaces() {
 
 # Collect complete network state
 collect_network_state() {
-   log_info "Collecting complete network state..."
+    local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
+    local test_dns="${TEST_DNS:-${DEFAULT_DNS_SERVERS[0]}}"
 
-   # Use jc for cleaner JSON output
-   local interfaces_json
-   interfaces_json=$(ifconfig | jc --ifconfig)
+    # DNS test using check_basic_connectivity
+    local dns_test
+    dns_test=$(check_basic_connectivity "$test_dns")
+    local dns_reachable=$(echo "$dns_test" | jq -r '.reachable')
+    local dns_latency=$(echo "$dns_test" | jq -r '.latency')
+    printf "Ping to central DNS (%s): Reachable:%s (%sms)\n" "$test_dns" "$dns_reachable" "$dns_latency" >&2
 
-   local routes_json
-   routes_json=$(route -n | jc --route)
+    # URL test using check_basic_connectivity
+    local url_test
+    url_test=$(check_basic_connectivity "$test_url")
+    local url_reachable=$(echo "$url_test" | jq -r '.reachable')
+    local url_latency=$(echo "$url_test" | jq -r '.latency')
+    printf "Ping to test URL (%s): Reachable:%s (%sms)\n" "$test_url" "$url_reachable" "$url_latency" >&2
 
-   # Get default interface
-   local default_if
-   default_if=$(route -n | awk '$1=="0.0.0.0" {print $8}')
+    # Traceroute with jc
+    local trace_data
+    trace_data=$(trace_route "$test_url")
+    local successful_hops=$(echo "$trace_data" | jq '[.hops[] | select(.probes != [])] | length')
+    printf "Successful hops: %s\n" "$successful_hops" >&2
 
-   # Combine all information
-   jq -n \
-       --arg defif "$default_if" \
-       --argjson interfaces "$interfaces_json" \
-       --argjson routes "$routes_json" \
-       '{
-           timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
-           defaultInterface: $defif,
-           interfaces: $interfaces,
-           routes: $routes,
-           state: {
-               basic_connectivity: null,
-               dns_resolution: null,
-               udp_connectivity: null
-           }
-       }'
+    # Check if any of the tests failed
+    if [[ "$dns_reachable" != "true" ]] || [[ "$url_reachable" != "true" ]]; then
+        return 1
+    fi
 
-   return 0
+    # Build and output the JSON response
+    jq -n \
+        --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        --argjson dns "$dns_test" \
+        --argjson url "$url_test" \
+        --argjson trace "$trace_data" \
+        '{
+            timestamp: $timestamp,
+            testDNS: $dns,
+            testUrl: $url,
+            traceroute: $trace
+        }'
+
+    return 0
 }
+
+
 
 # Trace route to target
 trace_route() {
@@ -209,65 +227,17 @@ trace_route() {
     local max_hops=10
     local timeout=2
 
-    log_info "Tracing route to $target..."
-    local result=$(traceroute -w "$timeout" -m "$max_hops" "$target" 2>/dev/null | jc --traceroute)
-    local hop_count=$(echo "$result" | jq '.hops | length')
-    log_info "Found $hop_count hops"
-    echo "$result" | jq -c '.'  # Use -c for compact output if needed internally
+    LANG=C traceroute -w "$timeout" -m "$max_hops" "$target" 2>/dev/null | jc --traceroute
 }
 
 
-
-
-# Add to tailscale-lib-network.sh
-
-# Collects the initial network state before Tailscale configuration.
-# Creates the networkState.initial section of tailscale.conf.
-#
-# Input:
-#   None - Uses environment variables for test URLs and configurations
-#
-# Output:
-#   stdout: JSON object containing:
-#     - timestamp: When the state was collected
-#     - testDNS: DNS resolution test results
-#     - testUrl: URL connectivity test results
-#     - traceroute: Detailed path analysis to test URL
-#
-# Returns:
-#   0 (EXIT_SUCCESS): Successfully collected state
-#   2 (EXIT_NETWORK_ERROR): Failed to collect state
-#
 collect_initial_state() {
     log_info "Collecting initial network state..."
 
-    # Test URL connectivity first
-    local target="${TAILSCALE_TEST_URL:-www.sol.no}"
-    local url_test_result
-    url_test_result=$(check_basic_connectivity "$target" | jq -n --arg host "$target" --arg reachable "true" --arg latency "0" '{
-        host: $host,
-        reachable: $reachable,
-        latency: ($latency | tonumber)
-    }')
+    # Capture both the output and the return status
+    INITIAL_STATE=$(collect_network_state) || return $?
 
-    # Get trace information
-    local trace_info
-    trace_info=$(trace_route "$target")
-
-    # Create complete state
-    local initial_state
-    initial_state=$(jq -n \
-        --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-        --argjson url "$url_test_result" \
-        --argjson trace "$trace_info" \
-        '{
-            timestamp: $timestamp,
-            testUrl: $url,
-            traceroute: $trace
-        }')
-
-    echo "$initial_state" > "${TAILSCALE_STATE_DIR}/initial_state.json"
-    return "$EXIT_SUCCESS"
+    return 0
 }
 
 # Start Tailscale daemon
@@ -392,6 +362,6 @@ establish_tailscale_connection() {
 
 # Export required functions
 export -f verify_network_state check_basic_connectivity
-export -f verify_tun_device check_network_interfaces
+export -f verify_tun_device
 export -f collect_network_state
 export -f trace_route collect_initial_state start_tailscale_daemon stop_tailscale_daemon establish_tailscale_connection
