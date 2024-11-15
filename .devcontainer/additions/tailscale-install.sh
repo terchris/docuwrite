@@ -146,7 +146,6 @@ create_directories() {
         "${TAILSCALE_STATE_DIR}"
         "${TAILSCALE_RUNTIME_DIR}"
         "${TAILSCALE_LOG_BASE}"
-        "${TAILSCALE_LOG_DAEMON_DIR}"
         "${TAILSCALE_LOG_AUDIT_DIR}"
     )
 

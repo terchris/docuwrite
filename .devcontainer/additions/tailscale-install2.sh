@@ -2,6 +2,7 @@
 # File: .devcontainer/additions/tailscale-install2.sh
 #
 # Purpose: Installs Tailscale and sets up required directories in a devcontainer
+# Usage: sudo .devcontainer/additions/tailscale-install2.sh
 #
 # Author: Terje Christensen
 # Created: November 2024
@@ -16,6 +17,9 @@ readonly SCRIPT_DIR
 readonly REQUIRED_LIBS=(
     "common"     # Common utilities and logging
     "network"    # Network testing and verification
+    "config"     # Configuration management
+    "status"     # Status tracking and progress display
+    "report"     # Status reporting and display
 )
 
 # Source library files
@@ -33,8 +37,8 @@ done
 check_existing_installation() {
     if command -v tailscale >/dev/null; then
         local version
-        version=$(tailscale version 2>/dev/null || echo "unknown")
-        log_info "Tailscale is already installed (version: $version)"
+        version=$(tailscale version 2>/dev/null | head -n1 | cut -d' ' -f1 || echo "unknown")
+        log_info "Tailscale is already installed (version: ${version})"
         return 0
     fi
     return 1
@@ -44,36 +48,17 @@ check_existing_installation() {
 install_tailscale() {
     log_info "Installing Tailscale..."
 
-    # Create keyring directory
-    mkdir -p --mode=0755 /usr/share/keyrings
-
-    # Add Tailscale's GPG key
-    if ! curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
-         | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null; then
-        log_error "Failed to add Tailscale GPG key"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Add Tailscale's package repository
-    if ! curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list \
-         | tee /etc/apt/sources.list.d/tailscale.list >/dev/null; then
-        log_error "Failed to add Tailscale repository"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Update package list
-    if ! apt-get update -qq; then
-        log_error "Failed to update package list"
-        return "$EXIT_ENV_ERROR"
-    fi
-
     # Install Tailscale
-    if ! apt-get install -y tailscale tailscale-archive-keyring; then
-        log_error "Failed to install Tailscale packages"
-        return "$EXIT_ENV_ERROR"
+    curl -fsSL https://tailscale.com/install.sh | sh
+
+    # Verify installation
+    if ! command -v tailscale >/dev/null; then
+        log_error "Tailscale installation failed"
+        return 1
     fi
 
     log_info "Tailscale installed successfully"
+
     return "$EXIT_SUCCESS"
 }
 
@@ -107,17 +92,27 @@ main() {
         return "$EXIT_ENV_ERROR"
     fi
 
+    # Check if already installed first
+    if check_existing_installation; then
+        log_info "No installation needed"
+        log_info "To start using Tailscale, please run:"
+        log_info "    sudo .devcontainer/additions/tailscale-start2.sh"
+        return "$EXIT_SUCCESS"
+    fi
+
     # Load environment first
     if ! load_environment; then
         log_error "Failed to load environment configuration"
         return "$EXIT_ENV_ERROR"
     fi
 
-    # Check if already installed
-    if check_existing_installation; then
-        log_info "No installation needed"
-        return "$EXIT_SUCCESS"
+    # Phase 1: Environment preparation
+    if ! prepare_environment "skip-tailscale"; then
+        log_error "Failed to prepare environment"
+        return "$EXIT_ENV_ERROR"
     fi
+
+    log_info "Environment preparation completed successfully"
 
     # Check capabilities
     if ! check_capabilities; then

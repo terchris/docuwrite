@@ -212,11 +212,21 @@ trace_route() {
     local max_hops=10
     local timeout=2
 
+    # First check if we get any valid response
+    local trace_output
+    trace_output=$(LANG=C traceroute -w "$timeout" -m "$max_hops" "$target" 2>/dev/null)
+
+    # Check if we got any valid hops (lines that don't contain only asterisks)
+    if ! echo "$trace_output" | grep -v '^\s*[0-9]*\s\*\s\*\s\*$' > /dev/null; then
+        log_warn "No valid traceroute path found - all hops timed out"
+        return 1
+    fi
+
     local trace_json
-    trace_json=$(LANG=C traceroute -w "$timeout" -m "$max_hops" "$target" 2>/dev/null | jc --traceroute)
+    trace_json=$(echo "$trace_output" | jc --traceroute)
 
     # Print hop information - only process if we have valid JSON
-    if [[ -n "$trace_json" ]] && echo "$trace_json" | jq -e '.hops' >/dev/null 2>&1; then
+    if [[ -n "$trace_json" ]] && echo "$trace_json" | jq -e '.hops[] | select(.probes[0].ip != null)' >/dev/null 2>&1; then
         local hop_path=""
         local successful_hops=0
 
@@ -225,7 +235,7 @@ trace_route() {
             local hop_num hostname ip has_probes
             read -r hop_num hostname ip has_probes <<< "$line"
 
-            if [[ "$has_probes" == "true" ]]; then
+            if [[ "$has_probes" == "true" && "$ip" != "null" ]]; then
                 [[ -n "$hop_path" ]] && hop_path+=" -> "
                 if [[ "$hostname" != "$ip" && -n "$hostname" && "$hostname" != "null" ]]; then
                     hop_path+="$hostname"
@@ -234,7 +244,7 @@ trace_route() {
                 fi
                 ((successful_hops++))
             fi
-        done < <(echo "$trace_json" | jq -r '.hops[] | "\(.hop) \(.probes[0].name // "_gateway") \(.probes[0].ip // "null") \(if .probes then "true" else "false" end)"')
+        done < <(echo "$trace_json" | jq -r '.hops[] | "\(.hop) \(.probes[0].name // "_gateway") \(.probes[0].ip // "null") \(if .probes[0].ip then "true" else "false" end)"')
 
         # Add destination if not in the path
         local destination
@@ -243,12 +253,12 @@ trace_route() {
             hop_path+=" -> $destination"
         fi
 
-        # Only print if we have a valid path
-        if [[ -n "$hop_path" ]]; then
+        # Only print if we have a valid path with more than just the first hop
+        if [[ -n "$hop_path" && "$successful_hops" -gt 1 ]]; then
             log_info "Trace path: ${hop_path}"
             log_info "Successful hops: ${successful_hops}"
         else
-            log_warn "No valid trace path found"
+            log_warn "No valid trace path found - insufficient successful hops"
         fi
     else
         log_warn "No valid traceroute data received"

@@ -36,41 +36,6 @@ for lib in "${REQUIRED_LIBS[@]}"; do
     source "$lib_file"
 done
 
-# Pre-connection setup and verification
-prepare_environment() {
-    log_info "Preparing environment..."
-
-    # Load environment configuration
-    display_setup_progress "Environment" "Loading configuration..." 0 4
-    if ! load_environment; then
-        log_error "Failed to load environment configuration"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Verify required capabilities
-    display_setup_progress "Environment" "Checking capabilities..." 1 4
-    if ! check_capabilities; then
-        log_error "Failed to verify required capabilities"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Check required tools
-    display_setup_progress "Environment" "Checking dependencies..." 2 4
-    if ! check_dependencies; then
-        log_error "Failed to verify required tools"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Collect initial network state
-    display_setup_progress "Environment" "Collecting initial state..." 3 4
-    if ! collect_initial_state; then
-        log_error "Failed to collect initial network state"
-        return "$EXIT_NETWORK_ERROR"
-    fi
-
-    display_setup_progress "Environment" "Environment prepared successfully" 4 4
-    return "$EXIT_SUCCESS"
-}
 
 # Initialize Tailscale service
 initialize_tailscale() {
