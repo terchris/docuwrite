@@ -330,15 +330,24 @@ prepare_environment() {
         return "$EXIT_ENV_ERROR"
     fi
 
+
+    # create and initialize and create folders and files
+
+    display_setup_progress "Environment" "Initalize and create folders..." 1 4
+    if ! initialize_tailscale_directories; then
+        log_error "Failed to load environment configuration"
+        return "$EXIT_ENV_ERROR"
+    fi
+
     # Verify required capabilities
-    display_setup_progress "Environment" "Checking capabilities..." 1 4
+    display_setup_progress "Environment" "Checking capabilities..." 2 4
     if ! check_capabilities; then
         log_error "Failed to verify required capabilities"
         return "$EXIT_ENV_ERROR"
     fi
 
     # Check required tools
-    display_setup_progress "Environment" "Checking dependencies..." 2 4
+    display_setup_progress "Environment" "Checking dependencies..." 3 4
     if [[ "$skip_tailscale" != "skip-tailscale" ]]; then
         if ! check_dependencies; then
             log_error "Failed to verify required tools"
@@ -347,7 +356,7 @@ prepare_environment() {
     fi
 
     # Collect initial network state
-    display_setup_progress "Environment" "Collecting initial state..." 3 4
+    display_setup_progress "Environment" "Collecting initial state..." 4 4
     if ! collect_initial_state; then
         log_error "Failed to collect initial network state"
         return "$EXIT_NETWORK_ERROR"
@@ -358,7 +367,54 @@ prepare_environment() {
 }
 
 
+##### initialize_tailscale_directories
+# Creates all required Tailscale directories with proper permissions
+#
+# Environment Variables Used:
+#   TAILSCALE_BASE_DIR: Base directory for Tailscale
+#   TAILSCALE_STATE_DIR: State directory
+#   TAILSCALE_RUNTIME_DIR: Runtime directory
+#   TAILSCALE_LOG_BASE: Base log directory
+#   TAILSCALE_LOG_DAEMON_DIR: Daemon log directory
+#   TAILSCALE_LOG_AUDIT_DIR: Audit log directory
+#   TAILSCALE_DIR_MODE: Directory permission mode
+#
+# Returns:
+#   0: Success
+#   1: Failed to create one or more directories
+initialize_tailscale_directories() {
+    log_info "Creating required Tailscale directories..."
 
+    # List of required directories with their purpose
+    declare -A directories=(
+        ["$TAILSCALE_BASE_DIR"]="Base directory"
+        ["$TAILSCALE_STATE_DIR"]="State directory"
+        ["$TAILSCALE_RUNTIME_DIR"]="Runtime directory"
+        ["$TAILSCALE_LOG_BASE"]="Log base directory"
+        ["$TAILSCALE_LOG_DAEMON_DIR"]="Daemon logs"
+        ["$TAILSCALE_LOG_AUDIT_DIR"]="Audit logs"
+    )
+
+    local success=true
+
+    # Create each directory with proper permissions
+    for dir in "${!directories[@]}"; do
+        log_debug "Creating ${directories[$dir]}: $dir"
+        if ! create_directory "$dir" "$TAILSCALE_DIR_MODE"; then
+            log_error "Failed to create ${directories[$dir]}: $dir"
+            success=false
+        fi
+    done
+
+    # If any directory creation failed, return error
+    if [[ "$success" != "true" ]]; then
+        return 1
+    fi
+
+    log_info "All required Tailscale directories created successfully"
+    return 0
+}
 
 # Export required functions
 export -f collect_final_state save_tailscale_conf prepare_environment
+export -f initialize_tailscale_directories

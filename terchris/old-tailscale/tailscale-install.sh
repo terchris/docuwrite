@@ -144,9 +144,7 @@ create_directories() {
     local dirs=(
         "${TAILSCALE_BASE_DIR}"
         "${TAILSCALE_STATE_DIR}"
-        "${TAILSCALE_RUNTIME_DIR}"
         "${TAILSCALE_LOG_BASE}"
-        "${TAILSCALE_LOG_AUDIT_DIR}"
     )
 
     for dir in "${dirs[@]}"; do
@@ -154,9 +152,7 @@ create_directories() {
         chmod "${TAILSCALE_DIR_MODE}" "$dir"
     done
 
-    # Initialize log files
-    touch "${TAILSCALE_DAEMON_LOG}" "${TAILSCALE_SETUP_LOG}"
-    chmod "${TAILSCALE_FILE_MODE}" "${TAILSCALE_DAEMON_LOG}" "${TAILSCALE_SETUP_LOG}"
+
 }
 
 # Install Tailscale

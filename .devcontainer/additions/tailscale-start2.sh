@@ -1,6 +1,7 @@
 #!/bin/bash
 # File: .devcontainer/additions/tailscale-start2.sh
 #
+# Usage: sudo .devcontainer/additions/tailscale-start2.sh
 # Purpose:
 #   Starts and configures Tailscale in a devcontainer environment with proper
 #   sequencing, status tracking, and comprehensive network verification.

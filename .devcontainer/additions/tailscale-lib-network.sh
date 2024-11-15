@@ -19,11 +19,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Network test configuration
-readonly DEFAULT_PING_COUNT=4
+
 readonly DEFAULT_PING_TIMEOUT=5
-readonly DEFAULT_TRACE_HOPS=10
-readonly DEFAULT_TRACE_TIMEOUT=2
-readonly DEFAULT_TEST_DOMAIN="www.sol.no"
+
+
+
 readonly DEFAULT_DNS_SERVERS=(
     "8.8.8.8"      # Google DNS
     "1.1.1.1"      # Cloudflare DNS

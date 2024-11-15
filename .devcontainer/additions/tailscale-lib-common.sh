@@ -102,6 +102,7 @@ load_environment() {
         ["TAILSCALE_STATE_DIR"]="State directory"
         ["TAILSCALE_RUNTIME_DIR"]="Runtime directory"
         ["TAILSCALE_LOG_BASE"]="Base log directory"
+        ["TAILSCALE_LOG_DAEMON_DIR"]="Daemon log directory"
         ["TAILSCALE_LOG_AUDIT_DIR"]="Audit log directory"
 
         # Logging Configuration
@@ -184,6 +185,7 @@ load_environment() {
         "TAILSCALE_STATE_DIR"
         "TAILSCALE_RUNTIME_DIR"
         "TAILSCALE_LOG_BASE"
+        "TAILSCALE_LOG_DAEMON_DIR"
         "TAILSCALE_LOG_AUDIT_DIR"
     )
 
