@@ -23,27 +23,13 @@ fi
 readonly DEVCONTAINER_PREFIX="devcontainer"
 
 
-# Status cache configuration
-readonly STATUS_CACHE_FILE="/tmp/tailscale_status_cache.json"
-readonly STATUS_CACHE_TTL=5  # Cache lifetime in seconds
-
-# Initialize status tracking
-declare -g LAST_STATUS_CHECK=0
-declare -g CURRENT_STATUS=""
-
-# Get Tailscale status (with caching)
+# Get Tailscale status
 get_tailscale_status() {
     local force_refresh="${1:-false}"
     local current_time
     current_time=$(date +%s)
 
-    # Check if we should use cached status
-    if [[ "$force_refresh" != "true" ]] &&
-       [[ -n "$CURRENT_STATUS" ]] &&
-       (( current_time - LAST_STATUS_CHECK <= STATUS_CACHE_TTL )); then
-        echo "$CURRENT_STATUS"
-        return 0
-    fi
+
 
     # Get fresh status
     local status_output
@@ -63,9 +49,7 @@ get_tailscale_status() {
         return 1
     fi
 
-    # Update cache
-    CURRENT_STATUS="$status_output"
-    LAST_STATUS_CHECK="$current_time"
+
     echo "$status_output"
     return 0
 }
@@ -94,7 +78,7 @@ parse_status_field() {
 # Check if Tailscale is running
 check_tailscale_running() {
     local status_json
-    status_json=$(get_tailscale_status true)  # Force refresh
+    status_json=$(get_tailscale_status)
 
     if [[ -z "$status_json" ]]; then
         return 1
@@ -162,7 +146,7 @@ get_connection_info() {
 # Validate Tailscale configuration
 validate_tailscale_config() {
     local status_json
-    status_json=$(get_tailscale_status true)  # Force refresh
+    status_json=$(get_tailscale_status)
 
     local issues=()
 

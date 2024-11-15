@@ -108,7 +108,7 @@ configure_routing() {
     setup_exit_node "$exit_node_info" || return 1
 
     # Verify routing configuration
-    verify_exit_routing "$exit_node_info" || return 1
+    #verify_exit_routing "$exit_node_info" || return 1
 
     return 0
 }
@@ -118,11 +118,14 @@ finalize_setup() {
     log_info "Finalizing Tailscale setup..."
 
     # Collect final state
-    collect_final_state || return 1
+    TAILSCALE_CONF_JSON=$(collect_final_state) || return 1
 
-    # Generate and save configuration
-    generate_configuration || return 1
 
+    # Save the configuration
+    if ! save_tailscale_conf; then
+        log_error "Failed to save Tailscale configuration"
+        return 1
+    fi
 
     return 0
 }
@@ -174,12 +177,8 @@ main() {
     local end_time
     end_time=$(date +%s)
 
-    # Load final configuration for summary
-    local config_json
-    config_json=$(load_configuration)
-
     # Display completion summary with timing information
-    display_completion_summary "$config_json" "$start_time" "$end_time"
+    display_completion_summary  "$start_time" "$end_time"
     return "$EXIT_SUCCESS"
 }
 

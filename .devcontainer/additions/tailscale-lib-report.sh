@@ -72,15 +72,15 @@ display_configuration() {
 
 # Display network state changes
 display_network_changes() {
-    local initial_state="$1"
-    local final_state="$2"
+    local NETWORK_INITIAL_ROUTING_JSON="$1"
+    local NETWORK_TAILSCALE_ROUTING_JSON="$2"
 
     log_info "Network State Changes:"
     log_info "====================="
 
     # Compare routing
     log_info "Routing Changes:"
-    jq -n --argjson init "$initial_state" --argjson final "$final_state" '
+    jq -n --argjson init "$NETWORK_INITIAL_ROUTING_JSON" --argjson final "$NETWORK_TAILSCALE_ROUTING_JSON" '
         def compare_routes:
             ($final.routing - $init.routing) as $added |
             ($init.routing - $final.routing) as $removed |
@@ -127,75 +127,64 @@ display_setup_progress() {
     log_info ""
 }
 
-# Generate setup report
-generate_setup_report() {
-    local config_json="$1"
-    local output_file="${2:-${TAILSCALE_LOG_BASE}/setup_report.txt}"
 
-    {
-        echo "Tailscale Setup Report"
-        echo "======================"
-        echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-        echo ""
-
-        # Display configuration
-        display_configuration "$config_json"
-
-        # Add network state changes if available
-        if echo "$config_json" | jq -e '.networkState' >/dev/null; then
-            echo ""
-            display_network_changes \
-                "$(echo "$config_json" | jq '.networkState.initial')" \
-                "$(echo "$config_json" | jq '.networkState.final')"
-        fi
-
-    } > "$output_file"
-
-    log_info "Setup report saved to: ${output_file}"
-    return 0
-}
-
-# Display completion summary
+##### display_completion_summary
+# Displays a summary of the Tailscale setup completion including duration,
+# container configuration, and exit node details.
+#
+# Arguments:
+#   $1 - start_time (int): Setup start time in Unix epoch
+#   $2 - end_time (int): Setup end time in Unix epoch
+#
+# Environment Variables:
+#   TAILSCALE_CONF_JSON: Global configuration JSON
+#
+# Returns:
+#   0: Success
+#   1: If TAILSCALE_CONF_JSON is not available
 display_completion_summary() {
-    local config_json="$1"
-    local start_time="$2"
-    local end_time="$3"
+   local start_time="$1"
+   local end_time="$2"
 
-    # Calculate duration
-    local duration=$((end_time - start_time))
-    local minutes=$((duration / 60))
-    local seconds=$((duration % 60))
+   # Verify we have configuration
+   if [[ -z "$TAILSCALE_CONF_JSON" ]]; then
+       log_error "No configuration available for summary display"
+       return 1
+   fi
 
-    log_info "===================================="
-    log_info "Tailscale Setup Complete"
-    log_info "===================================="
-    log_info ""
-    log_info "Setup Duration: ${minutes}m ${seconds}s"
-    log_info ""
+   # Calculate duration
+   local duration=$((end_time - start_time))
+   local minutes=$((duration / 60))
+   local seconds=$((duration % 60))
 
-    # Show key information
-    log_info "Container Configuration:"
-    log_info "- Hostname: $(echo "$config_json" | jq -r '.containerIdentity.hostname')"
-    log_info "- IP: $(echo "$config_json" | jq -r '.containerIdentity.tailscaleIP')"
-    log_info "- Network: $(echo "$config_json" | jq -r '.tailnet.name')"
-    log_info ""
+   log_info "===================================="
+   log_info "Tailscale Setup Complete"
+   log_info "===================================="
+   log_info ""
+   log_info "Setup Duration: ${minutes}m ${seconds}s"
+   log_info ""
 
-    if [[ "$(echo "$config_json" | jq -r '.exitNode != null')" == "true" ]]; then
-        log_info "Exit Node:"
-        log_info "- Host: $(echo "$config_json" | jq -r '.exitNode.host')"
-        log_info "- IP: $(echo "$config_json" | jq -r '.exitNode.ip')"
-        log_info "- Connection: $(echo "$config_json" | jq -r '.exitNode.connection')"
-    fi
+   # Show key information
+   log_info "Container Configuration:"
+   log_info "- Hostname: $(echo "$TAILSCALE_CONF_JSON" | jq -r '.Self.HostName')"
+   log_info "- IP: $(echo "$TAILSCALE_CONF_JSON" | jq -r '.Self.TailscaleIPs[0]')"
+   log_info "- Network: $(echo "$TAILSCALE_CONF_JSON" | jq -r '.CurrentTailnet.Name')"
+   log_info ""
 
-    log_info ""
-    log_info "Setup reports have been saved to:"
-    log_info "- ${TAILSCALE_LOG_BASE}/setup_report.txt"
-    log_info "- ${TAILSCALE_LOG_BASE}/health_report.txt"
-    log_info ""
-    log_info "===================================="
+   if [[ "$(echo "$TAILSCALE_CONF_JSON" | jq -r '.exitNode != null')" == "true" ]]; then
+       log_info "Exit Node:"
+       log_info "- Host: $(echo "$TAILSCALE_CONF_JSON" | jq -r '.exitNode.HostName')"
+       log_info "- IP: $(echo "$TAILSCALE_CONF_JSON" | jq -r '.exitNode.TailscaleIPs[0]')"
+       local connection
+       connection=$(echo "$TAILSCALE_CONF_JSON" | jq -r '.network.tailscale.traceroute.hops[0].probes[0].name')
+       log_info "- Connection: ${connection:-relay}"
+   fi
+
+   log_info "===================================="
+
+   return 0
 }
-
 # Export required functions
 export -f display_configuration display_network_changes
 export -f display_setup_progress
-export -f generate_setup_report display_completion_summary
+export -f  display_completion_summary

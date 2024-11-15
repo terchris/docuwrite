@@ -16,328 +16,341 @@
 
 # Ensure script is being sourced
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "Error: This script should be sourced, not executed directly"
+    log_error "Error: This script should be sourced, not executed directly"
     exit 1
 fi
 
 # Configuration state tracking
-declare -g INITIAL_STATE=""
-declare -g FINAL_STATE=""
+declare -g NETWORK_INITIAL_ROUTING_JSON=""
+declare -g NETWORK_TAILSCALE_ROUTING_JSON=""
+declare -g NETWORK_TAILSCALE_STATUS_JSON=""
+declare -g TAILSCALE_CONF_JSON=""
+declare -g TAILSCALE_STATUS_JSON=""
 declare -g CONFIG_VERSION="1.0.0"
 
 # Configuration schema version
 readonly CONFIG_SCHEMA_VERSION="1.0.0"
 
-# Save initial state
-save_initial_state() {
-    local network_state="$1"
 
-    log_info "Saving initial state..."
 
-    if [[ -z "$network_state" ]]; then
-        log_error "No network state provided"
-        return "$EXIT_ENV_ERROR"
-    fi
 
-    # Add metadata to state
-    INITIAL_STATE=$(jq -n \
-        --arg version "$CONFIG_SCHEMA_VERSION" \
-        --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-        --argjson state "$network_state" \
-        '{
-            version: $version,
-            timestamp: $timestamp,
-            state: $state
-        }')
-
-    return 0
-}
-
-# Save final state
-save_final_state() {
-    local status_json="$1"
-    local network_state="$2"
-    local exit_node_info="$3"
-
-    log_info "Saving final state..."
-
-    if [[ -z "$status_json" || -z "$network_state" || -z "$exit_node_info" ]]; then
-        log_error "Missing required state information"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Create comprehensive final state
-    FINAL_STATE=$(jq -n \
-        --arg version "$CONFIG_SCHEMA_VERSION" \
-        --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-        --argjson status "$status_json" \
-        --argjson network "$network_state" \
-        --argjson exitnode "$exit_node_info" \
-        '{
-            version: $version,
-            timestamp: $timestamp,
-            status: $status,
-            network: $network,
-            exitNode: $exitnode
-        }')
-
-    return 0
-}
-
-# Generate complete configuration
-generate_configuration() {
-    local config_file="$TAILSCALE_CONF_FILE"
-    local status_json
-    status_json=$(get_tailscale_status true)
-
-    # Get network test data from captured states
-    local initial_state
-    initial_state=$(get_network_test_data "$INITIAL_STATE")
-
-    local final_state
-    final_state=$(get_network_test_data "$FINAL_STATE")
-
-    local config_json
-    config_json=$(jq -n \
-        --arg version "$CONFIG_SCHEMA_VERSION" \
-        --argjson status "$status_json" \
-        --argjson initial "$initial_state" \
-        --argjson final "$final_state" \
-        '{
-            schemaVersion: $version,
-            containerIdentity: {
-                hostname: $status.Self.HostName,
-                dnsName: $status.Self.DNSName,
-                tailscaleIP: $status.Self.TailscaleIPs[0],
-                created: ($status.Self.Created | split("T")[0]),
-                derpRegion: $status.Self.Relay
-            },
-            tailnet: {
-                name: $status.CurrentTailnet.Name,
-                magicDNSSuffix: $status.MagicDNSSuffix,
-                magicDNSEnabled: $status.CurrentTailnet.MagicDNSEnabled
-            },
-            userInfo: ($status.User | to_entries[] |
-                select(.value.LoginName != "tagged-devices") |
-                .value | {
-                    loginName: .LoginName,
-                    displayName: .DisplayName,
-                    profilePicURL: .ProfilePicURL
-            }),
-            exitNode: (
-                if $status.ExitNodeStatus != null then
-                $status.Peer[] | select(.ExitNode == true) |
-                {
-                    host: .HostName,
-                    ip: .TailscaleIPs[0],
-                    connection: .CurAddr,
-                    traffic: {
-                        rx: .RxBytes,
-                        tx: .TxBytes
-                    }
-                }
-                else null end
-            ),
-            capMap: $status.Self.CapMap,
-            networkState: {
-                initial: $initial,
-                final: $final
-            },
-            configGenerated: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-        }'
-    )
-
-    echo "$config_json" | jq '.' > "$config_file" && chmod 600 "$config_file"
-}
-
-get_network_test_data() {
-    local state_json="$1"
-    local ping_results
-    local trace_results
-
-    ping_results=$(get_ping_stats "$state_json")
-    trace_results=$(get_trace_data "$state_json")
-
-    jq -n \
-        --argjson ping "$ping_results" \
-        --argjson trace "$trace_results" \
-        '{
-            testDNS: $ping.dns,
-            testUrl: $ping.url,
-            traceroute: $trace
-        }'
-}
-
-# Load existing configuration
-load_configuration() {
-    local config_file="$TAILSCALE_CONF_FILE"
-
-    if [[ ! -f "$config_file" ]]; then
-        log_error "Configuration file not found: ${config_file}"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    if ! jq '.' "$config_file" >/dev/null 2>&1; then
-        log_error "Invalid JSON in configuration file"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Validate schema version
-    local config_version
-    config_version=$(jq -r '.schemaVersion' "$config_file")
-    if [[ "$config_version" != "$CONFIG_SCHEMA_VERSION" ]]; then
-        log_error "Configuration schema version mismatch"
-        log_error "Expected: ${CONFIG_SCHEMA_VERSION}, Found: ${config_version}"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    cat "$config_file"
-    return 0
-}
-
-# Validate configuration
-validate_configuration() {
-    local config_json="$1"
-
-    log_info "Validating configuration..."
-
-    # Required fields
-    local required_fields=(
-        ".containerIdentity.hostname"
-        ".containerIdentity.tailscaleIP"
-        ".tailnet.name"
-        ".userInfo.loginName"
-        ".capMap"
-        ".configGenerated"
-    )
-
-    local missing_fields=()
-    for field in "${required_fields[@]}"; do
-        if ! echo "$config_json" | jq -e "$field" >/dev/null 2>&1; then
-            missing_fields+=("$field")
-        fi
-    done
-
-    if ((${#missing_fields[@]} > 0)); then
-        log_error "Configuration validation failed. Missing fields:"
-        for field in "${missing_fields[@]}"; do
-            log_error "- $field"
-        done
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Validate values
-    local hostname
-    hostname=$(echo "$config_json" | jq -r '.containerIdentity.hostname')
-    local expected_hostname
-    expected_hostname="devcontainer-$(echo "${TAILSCALE_USER_EMAIL%@*}" | tr '.' '-')"
-
-    if [[ "$hostname" != "$expected_hostname"* ]]; then
-        log_error "Invalid hostname: ${hostname}"
-        log_error "Expected pattern: ${expected_hostname}*"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Check exit node configuration if enabled
-    if [[ "${TAILSCALE_EXIT_NODE_ENABLED:-false}" == "true" ]]; then
-        if ! echo "$config_json" | jq -e '.exitNode != null' >/dev/null; then
-            log_error "Exit node configuration missing but enabled in settings"
-            return "$EXIT_ENV_ERROR"
-        fi
-    fi
-
-    log_info "Configuration validation successful"
-    return 0
-}
-
-# Update specific configuration fields
-update_configuration() {
-    local config_file="$TAILSCALE_CONF_FILE"
-    local updates="$1"
-
-    if [[ ! -f "$config_file" ]]; then
-        log_error "Configuration file not found: ${config_file}"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Create backup
-    local backup_file="${config_file}.$(date +%Y%m%d_%H%M%S).bak"
-    cp "$config_file" "$backup_file" || log_warn "Failed to create backup"
-
-    # Apply updates
-    local updated_config
-    updated_config=$(jq --argjson updates "$updates" '. * $updates' "$config_file")
-
-    # Validate updated configuration
-    if ! validate_configuration "$updated_config"; then
-        log_error "Updated configuration failed validation"
-        # Restore backup
-        cp "$backup_file" "$config_file"
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    # Save updated configuration
-    echo "$updated_config" > "$config_file"
-    chmod 600 "$config_file"
-
-    log_info "Configuration updated successfully"
-    return 0
-}
-
-# Get configuration field
-get_configuration_field() {
-    local field="$1"
-    local default="${2:-}"
-
-    local config_file="$TAILSCALE_CONF_FILE"
-
-    if [[ ! -f "$config_file" ]]; then
-        if [[ -n "$default" ]]; then
-            echo "$default"
-            return 0
-        fi
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    local value
-    value=$(jq -r "$field" "$config_file")
-
-    if [[ "$value" == "null" || -z "$value" ]]; then
-        if [[ -n "$default" ]]; then
-            echo "$default"
-            return 0
-        fi
-        return "$EXIT_ENV_ERROR"
-    fi
-
-    echo "$value"
-    return 0
-}
-
+##### collect_final_state
+# Collects and combines network state, Tailscale status and routing information
+# to create a complete Tailscale configuration.
+#
+# This function orchestrates the collection of all necessary information:
+# 1. Network state (DNS tests, URL connectivity, traceroute)
+# 2. Tailscale status information
+# 3. Filtered and formatted Tailscale network status
+# 4. Creates final configuration JSON
+#
+# The function uses several global variables to store and pass state:
+# - NETWORK_TAILSCALE_ROUTING_JSON: Current network routing state
+# - TAILSCALE_STATUS_JSON: Raw Tailscale status
+# - NETWORK_TAILSCALE_STATUS_JSON: Processed Tailscale status
+# - TAILSCALE_CONF_JSON: Final configuration
+#
+# Dependencies:
+#   - collect_network_state: Collects current network state
+#   - get_tailscale_status: Gets raw Tailscale status
+#   - convert_tailscale_status2network_tailscale_status: Processes Tailscale status
+#   - create_tailscale_conf: Creates final configuration
+#
+# Returns:
+#   - On success: Outputs final configuration JSON
+#   - On failure: Returns error code from failed operation
+#
+# Exit codes:
+#   0: Success
+#   1: Network state collection failed
+#   2: Tailscale status retrieval failed
+#   3: Status conversion failed
+#   4: Configuration creation failed
 collect_final_state() {
-    log_info "Collecting final network state..."
-    local network_state
-    network_state=$(collect_network_state)
+   log_info "Collecting final network state..."
 
-    local status_json
-    status_json=$(get_tailscale_status true)
+   # Collect current network routing state
+   NETWORK_TAILSCALE_ROUTING_JSON=$(collect_network_state)
+   if [[ $? -ne 0 ]]; then
+       log_error "Failed to collect network state"
+       return 1
+   fi
 
-    local exit_node_info
-    exit_node_info=$(get_connection_info)
+   # Get current Tailscale status
+   TAILSCALE_STATUS_JSON=$(get_tailscale_status true)
+   if [[ $? -ne 0 ]]; then
+       log_error "Failed to get Tailscale status"
+       return 2
+   fi
 
-    # Combine all state information
+
+   # Convert Tailscale status to network configuration format
+   NETWORK_TAILSCALE_STATUS_JSON=$(convert_tailscale_status2network_tailscale_status)
+   if [[ $? -ne 0 ]]; then
+       log_error "Failed to convert Tailscale status"
+       return 3
+   fi
+
+
+   # Create final configuration
+   TAILSCALE_CONF_JSON=$(create_tailscale_conf)
+   if [[ $? -ne 0 ]]; then
+       log_error "Failed to create configuration"
+       return 4
+   fi
+
+
+   # Output the final configuration
+   echo "$TAILSCALE_CONF_JSON"
+   return 0
+}
+
+
+
+##### get_ping_stats
+# Extracts ping statistics from state JSON
+#
+# Arguments:
+#   $1 - state_json (string): State JSON containing ping information
+#
+# Returns:
+#   JSON object containing DNS and URL ping statistics
+get_ping_stats() {
+    local state_json="$1"
+
     jq -n \
-        --argjson network "$network_state" \
-        --argjson status "$status_json" \
-        --argjson exitnode "$exit_node_info" \
+        --argjson state "$state_json" \
         '{
-            network: $network,
-            status: $status,
-            exitNode: $exitnode
+            dns: $state.state.testDNS,
+            url: $state.state.testUrl
         }'
+}
+
+##### get_trace_data
+# Extracts traceroute data from state JSON
+#
+# Arguments:
+#   $1 - state_json (string): State JSON containing traceroute information
+#
+# Returns:
+#   JSON object containing traceroute data
+get_trace_data() {
+    local state_json="$1"
+
+    jq -n \
+        --argjson state "$state_json" \
+        '$state.state.traceroute'
+}
+
+
+##### convert_tailscale_status2network_tailscale_status
+# Extracts required fields from full Tailscale status JSON
+#
+# Environment Variables:
+#   TAILSCALE_STATUS_JSON: Full Tailscale status JSON
+#
+# Returns:
+#   0: Success, outputs filtered JSON
+#   1: Failure
+convert_tailscale_status2network_tailscale_status() {
+    # Input validation
+    if [[ -z "$TAILSCALE_STATUS_JSON" ]]; then
+        log_error "No Tailscale status JSON provided"
+        return 1
+    fi
+
+    # Extract and restructure the status information
+    jq -n --argjson status "$TAILSCALE_STATUS_JSON" '{
+        Self: {
+            ID: $status.Self.ID,
+            PublicKey: $status.Self.PublicKey,
+            HostName: $status.Self.HostName,
+            DNSName: $status.Self.DNSName,
+            UserID: $status.Self.UserID,
+            TailscaleIPs: $status.Self.TailscaleIPs,
+            AllowedIPs: $status.Self.AllowedIPs,
+            Created: $status.Self.Created,
+            CapMap: $status.Self.CapMap
+        },
+        CurrentTailnet: {
+            Name: $status.CurrentTailnet.Name,
+            MagicDNSSuffix: $status.MagicDNSSuffix,
+            MagicDNSEnabled: $status.CurrentTailnet.MagicDNSEnabled
+        },
+        exitNode: (
+            if $status.ExitNodeStatus != null then
+            {
+                ID: $status.ExitNodeStatus.ID,
+                Online: $status.ExitNodeStatus.Online,
+                TailscaleIPs: $status.ExitNodeStatus.TailscaleIPs,
+                HostName: ($status.Peer[] | select(.ExitNode == true) | .HostName),
+                DNSName: ($status.Peer[] | select(.ExitNode == true) | .DNSName)
+            }
+            else null end
+        ),
+        userInfo: ($status.User | to_entries[] |
+            select(.value.LoginName != "tagged-devices") |
+            .value | {
+                ID: .ID,
+                LoginName: .LoginName,
+                DisplayName: .DisplayName,
+                ProfilePicURL: .ProfilePicURL,
+                Roles: .Roles
+            }
+        )
+    }'
+}
+
+
+##### save_tailscale_conf
+# Saves the Tailscale configuration JSON to the specified configuration file
+# with proper permissions and ownership.
+#
+# Environment Variables:
+#   TAILSCALE_CONF_JSON: The configuration JSON to save
+#   TAILSCALE_CONF_FILE: The target file path (from tailscale-lib-common.sh)
+#   TAILSCALE_FILE_MODE: File permission mode (from environment)
+#
+# Returns:
+#   0: Success
+#   1: Failed to create directory or save file
+save_tailscale_conf() {
+    # Input validation
+    if [[ -z "$TAILSCALE_CONF_JSON" ]]; then
+        log_error "No configuration JSON available to save"
+        return 1
+    fi
+
+    if [[ -z "$TAILSCALE_CONF_FILE" ]]; then
+        log_error "No configuration file path specified"
+        return 1
+    fi
+
+    # Ensure the directory exists
+    local config_dir
+    config_dir="$(dirname "$TAILSCALE_CONF_FILE")"
+    if ! create_directory "$config_dir" "${TAILSCALE_DIR_MODE:-0750}"; then
+        log_error "Failed to create configuration directory: $config_dir"
+        return 1
+    fi
+
+    # Save the configuration with proper formatting
+    if ! echo "$TAILSCALE_CONF_JSON" | jq '.' > "$TAILSCALE_CONF_FILE"; then
+        log_error "Failed to save configuration to $TAILSCALE_CONF_FILE"
+        return 1
+    fi
+
+    # Set file permissions
+    if ! chmod "${TAILSCALE_FILE_MODE:-0640}" "$TAILSCALE_CONF_FILE"; then
+        log_error "Failed to set permissions on $TAILSCALE_CONF_FILE"
+        return 1
+    fi
+
+    log_info "Configuration saved to: $TAILSCALE_CONF_FILE"
+    return 0
+}
+
+
+##### create_tailscale_conf
+# Creates a comprehensive Tailscale configuration JSON object combining
+# initial and current network state, Tailscale status, and additional metadata.
+#
+# This function merges and structures data from multiple sources:
+# 1. Schema version and timestamp metadata
+# 2. Container identity from Tailscale status
+# 3. Tailnet information including DNS settings
+# 4. User information
+# 5. Exit node configuration and status
+# 6. Network state (both initial and current)
+#
+# Environment Variables Required:
+#   NETWORK_INITIAL_ROUTING_JSON: Initial network routing state
+#   NETWORK_TAILSCALE_ROUTING_JSON: Current network routing state
+#   NETWORK_TAILSCALE_STATUS_JSON: Processed Tailscale status information
+#   CONFIG_SCHEMA_VERSION: Schema version for configuration format
+#
+# Example Output Structure:
+# {
+#   "schemaVersion": "1.0.0",
+#   "configGenerated": "2024-11-14T12:35:23Z",
+#   "Self": {
+#     "ID": "...",
+#     "PublicKey": "...",
+#     "HostName": "devcontainer-user",
+#     "DNSName": "devcontainer-user.example.com",
+#     "UserID": "...",
+#     "TailscaleIPs": ["100.x.y.z", "fd7a:..."],
+#     "AllowedIPs": ["100.x.y.z/32", "fd7a:.../128"],
+#     "Created": "2024-11-14T12:23:03Z",
+#     "CapMap": {...}
+#   },
+#   "CurrentTailnet": {
+#     "Name": "example.com",
+#     "MagicDNSSuffix": "example.com",
+#     "MagicDNSEnabled": true
+#   },
+#   "exitNode": {
+#     "ID": "...",
+#     "hostname": "exit-node",
+#     "ip": "100.x.y.z",
+#     "online": true,
+#     "connection": "direct",
+#     "exitNode": true,
+#     "exitNodeOption": true
+#   },
+#   "userInfo": {
+#     "ID": "...",
+#     "LoginName": "user@example.com",
+#     "DisplayName": "User Name",
+#     "Roles": []
+#   },
+#   "network": {
+#     "initial": {...},
+#     "tailscale": {...}
+#   }
+# }
+#
+# Returns:
+#   - On success: Outputs the complete configuration JSON
+#   - On failure: Returns 1 and logs error
+#
+# Usage Example:
+#   config_json=$(create_tailscale_conf)
+#   if [[ $? -eq 0 ]]; then
+#     echo "$config_json" > config.json
+#   fi
+create_tailscale_conf() {
+    # Input validation
+    if [[ -z "$NETWORK_INITIAL_ROUTING_JSON" ]] ||
+       [[ -z "$NETWORK_TAILSCALE_ROUTING_JSON" ]] ||
+       [[ -z "$NETWORK_TAILSCALE_STATUS_JSON" ]]; then
+        log_error "Missing required state information"
+        return 1
+    fi
+
+    # Create the configuration JSON using jq
+    jq -n \
+        --arg schemaVersion "$CONFIG_SCHEMA_VERSION" \
+        --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        --argjson status "$NETWORK_TAILSCALE_STATUS_JSON" \
+        --argjson initial "$NETWORK_INITIAL_ROUTING_JSON" \
+        --argjson tailscale "$NETWORK_TAILSCALE_ROUTING_JSON" \
+        '{
+            schemaVersion: $schemaVersion,
+            configGenerated: $timestamp,
+            Self: $status.Self,
+            CurrentTailnet: $status.CurrentTailnet,
+            exitNode: $status.exitNode,
+            userInfo: $status.userInfo,
+            network: {
+                initial: $initial,
+                tailscale: $tailscale
+            }
+        }'
+
+    # jq will return non-zero on failure
+    return $?
 }
 
 # Export required functions
-export -f save_initial_state save_final_state generate_configuration
-export -f load_configuration validate_configuration update_configuration
-export -f get_configuration_field collect_final_state
+export -f collect_final_state save_tailscale_conf

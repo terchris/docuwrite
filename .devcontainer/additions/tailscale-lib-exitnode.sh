@@ -58,14 +58,18 @@ find_exit_node() {
     exit_node_info=$(get_valid_exit_node "$proxy_host") || return 1
 
     local exit_node_ip
-    exit_node_ip=$(echo "$exit_node_info" | jq -r '.ip')
+    exit_node_ip=$(echo "$exit_node_info" | jq -r '.ip' | tr -d '\n')
 
     while ((attempt <= max_retries)); do
         log_info "Attempt $attempt/$max_retries: Verifying connectivity to exit node..."
 
-        if check_basic_connectivity "$exit_node_ip" 5 1; then
-            log_info "Successfully verified connectivity to exit node"
-            echo "$exit_node_info"
+        local result
+        result=$(check_basic_connectivity "$exit_node_ip" 5 1)
+        local connect_status=$?
+
+        if [[ $connect_status -eq 0 ]]; then
+            print_connectivity_check "$result" 0
+            printf '%s' "$exit_node_info"  # Use printf to avoid adding newline
             return 0
         fi
 
@@ -76,6 +80,7 @@ find_exit_node() {
 
             # Re-verify exit node status
             exit_node_info=$(get_valid_exit_node "$proxy_host") || return 1
+            exit_node_ip=$(echo "$exit_node_info" | jq -r '.ip' | tr -d '\n')
         fi
     done
 
@@ -110,7 +115,7 @@ get_valid_exit_node() {
     local proxy_host="$1"
     local status_json
 
-    if ! status_json=$(get_tailscale_status true); then
+    if ! status_json=$(get_tailscale_status); then
         log_error "Failed to get Tailscale status"
         return 1
     fi
@@ -241,7 +246,7 @@ setup_exit_node() {
         while ((verification_count < verification_attempts)); do
             # Get current status
             local status_json
-            status_json=$(get_tailscale_status true)
+            status_json=$(get_tailscale_status)
 
             # Check if exit node is configured
             if echo "$status_json" | jq -e --arg ip "$exit_node_ip" \
