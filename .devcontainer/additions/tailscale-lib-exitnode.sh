@@ -24,7 +24,28 @@ fi
 SETUP_RETRY_COUNT="${SETUP_RETRY_COUNT:-3}"
 SETUP_RETRY_DELAY="${SETUP_RETRY_DELAY:-2}"
 
-# Find and make sure we can reach the exit node
+##### find_exit_node
+# Find and verify connectivity to a Tailscale exit node with retries
+# Prints: Progress of connection attempts and any error messages
+#
+# This function attempts to locate a specified exit node and verify that it's
+# accessible with multiple retry attempts.
+#
+# Environment Variables:
+#   TAILSCALE_DEFAULT_PROXY_HOST (string): Default proxy hostname (default: "devcontainerproxy")
+#
+# Returns:
+#   0: Success, outputs JSON object with the following structure:
+#      {
+#        "id": "string",         # Unique identifier of the exit node
+#        "hostname": "string",   # Host name of the exit node
+#        "ip": "string",        # Tailscale IP address
+#        "online": boolean,     # Whether the node is currently online
+#        "connection": "string", # Current connection address
+#        "exitNode": boolean,   # Whether this is currently set as exit node
+#        "exitNodeOption": boolean # Whether this node can be an exit node
+#      }
+#   EXIT_EXITNODE_ERROR: Failure, with error message and troubleshooting steps
 find_exit_node() {
     local proxy_host="${TAILSCALE_DEFAULT_PROXY_HOST:-devcontainerproxy}"
     local max_retries=3
@@ -66,6 +87,25 @@ find_exit_node() {
     return "$EXIT_EXITNODE_ERROR"
 }
 
+##### get_valid_exit_node
+# Get information about a specific Tailscale exit node
+# Prints: Info about the exit node found or error messages when not found
+#
+# Arguments:
+#   $1 - proxy_host (string): The hostname of the exit node to look for
+#
+# Returns:
+#   0: Success, outputs JSON object with the following structure:
+#      {
+#        "id": "string",         # Unique identifier of the exit node
+#        "hostname": "string",   # Host name of the exit node
+#        "ip": "string",        # Tailscale IP address
+#        "online": boolean,     # Whether the node is currently online
+#        "connection": "string", # Current connection address
+#        "exitNode": boolean,   # Whether this is currently set as exit node
+#        "exitNodeOption": boolean # Whether this node can be an exit node
+#      }
+#   1: Failure, with error message
 get_valid_exit_node() {
     local proxy_host="$1"
     local status_json
@@ -96,15 +136,37 @@ get_valid_exit_node() {
         return 1
     fi
 
-    if [[ "$(echo "$exit_node_info" | jq -r '.online')" != "true" ]]; then
+    local online_status=$(echo "$exit_node_info" | jq -r '.online')
+    local node_ip=$(echo "$exit_node_info" | jq -r '.ip')
+
+    if [[ "$online_status" != "true" ]]; then
         log_error "Exit node '${proxy_host}' exists but is offline"
         return 1
     fi
 
+    log_info "Found exit node: ${proxy_host} (${node_ip}) status: ${online_status}"
     echo "$exit_node_info"
     return 0
 }
 
+##### show_available_exit_nodes
+# Display a list of all available Tailscale exit nodes and their status
+# Prints: Formatted list of exit nodes with their details
+#
+# This function parses Tailscale status JSON and displays all nodes that can
+# act as exit nodes, showing their connection details and status.
+#
+# Arguments:
+#   $1 - status_json (string): JSON output from Tailscale status command
+#
+# Output format:
+#   hostname:
+#     IP: <tailscale_ip>
+#     Online: <true|false>
+#     Connection: <direct_ip|relay>
+#
+# Returns:
+#   0: Always succeeds
 show_available_exit_nodes() {
     local status_json="$1"
 
@@ -116,7 +178,28 @@ show_available_exit_nodes() {
     '
 }
 
-# Configure exit node
+##### setup_exit_node
+# Configure a Tailscale node as an exit node with retry mechanism
+# Prints: Progress of configuration steps and status updates
+#
+# This function configures Tailscale to use a specific node as an exit node,
+# with support for LAN access control and automatic retries on failure.
+#
+# Arguments:
+#   $1 - exit_node_info (string): JSON object containing exit node details:
+#      {
+#        "hostname": "string",   # Host name of the exit node
+#        "ip": "string"         # Tailscale IP address
+#      }
+#
+# Environment Variables:
+#   TAILSCALE_EXIT_NODE_ALLOW_LAN (string): Whether to allow LAN access (default: "true")
+#   SETUP_RETRY_COUNT (integer): Number of setup attempts to make
+#   SETUP_RETRY_DELAY (integer): Seconds to wait between retries
+#
+# Returns:
+#   0: Success, exit node configured and verified
+#   EXIT_EXITNODE_ERROR: Failure to configure or verify exit node
 setup_exit_node() {
     local exit_node_info="$1"
     local allow_lan="${TAILSCALE_EXIT_NODE_ALLOW_LAN:-true}"
@@ -188,7 +271,27 @@ setup_exit_node() {
     return "$EXIT_EXITNODE_ERROR"
 }
 
-# Verify routing through exit node
+##### verify_exit_routing
+# Verify that network traffic is being routed through the configured exit node
+# Prints: Verification progress and error messages if routing is incorrect
+#
+# This function checks if the traffic is properly routed through the exit node
+# by verifying the first hop in a traceroute matches the exit node's IP.
+#
+# Arguments:
+#   $1 - exit_node_info (string): JSON object containing exit node details:
+#      {
+#        "hostname": "string",   # Host name of the exit node
+#        "ip": "string"         # Tailscale IP address
+#      }
+#
+# Environment Variables:
+#   TAILSCALE_TEST_URL (string): URL to use for routing test (default: "www.sol.no")
+#
+# Returns:
+#   0: Success, traffic is routing through exit node
+#   EXIT_NETWORK_ERROR: Basic network verification failed
+#   EXIT_EXITNODE_ERROR: Traffic not routing through exit node correctly
 verify_exit_routing() {
     local exit_node_info="$1"
     local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
@@ -221,7 +324,6 @@ verify_exit_routing() {
 
     return 0
 }
-
 
 # Export required functions
 export -f find_exit_node setup_exit_node
