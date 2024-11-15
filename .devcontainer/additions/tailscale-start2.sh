@@ -90,9 +90,6 @@ initialize_tailscale() {
     # Connect with unique hostname
     establish_tailscale_connection "$hostname" || return 1
 
-    # Verify connection type -- WHY ?
-    detect_connection_type
-
     return 0
 }
 
@@ -106,9 +103,6 @@ configure_routing() {
 
     # Setup exit node routing
     setup_exit_node "$exit_node_info" || return 1
-
-    # Verify routing configuration
-    #verify_exit_routing "$exit_node_info" || return 1
 
     return 0
 }

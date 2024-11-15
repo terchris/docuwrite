@@ -276,60 +276,7 @@ setup_exit_node() {
     return "$EXIT_EXITNODE_ERROR"
 }
 
-##### verify_exit_routing
-# Verify that network traffic is being routed through the configured exit node
-# Prints: Verification progress and error messages if routing is incorrect
-#
-# This function checks if the traffic is properly routed through the exit node
-# by verifying the first hop in a traceroute matches the exit node's IP.
-#
-# Arguments:
-#   $1 - exit_node_info (string): JSON object containing exit node details:
-#      {
-#        "hostname": "string",   # Host name of the exit node
-#        "ip": "string"         # Tailscale IP address
-#      }
-#
-# Environment Variables:
-#   TAILSCALE_TEST_URL (string): URL to use for routing test (default: "www.sol.no")
-#
-# Returns:
-#   0: Success, traffic is routing through exit node
-#   EXIT_NETWORK_ERROR: Basic network verification failed
-#   EXIT_EXITNODE_ERROR: Traffic not routing through exit node correctly
-verify_exit_routing() {
-    local exit_node_info="$1"
-    local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
-
-    local proxy_host
-    proxy_host=$(echo "$exit_node_info" | jq -r '.hostname')
-    local exit_node_ip
-    exit_node_ip=$(echo "$exit_node_info" | jq -r '.ip')
-
-    log_info "Verifying routing through exit node '${proxy_host}'..."
-
-    if ! verify_network_state basic; then
-        log_error "Basic network verification failed"
-        return "$EXIT_NETWORK_ERROR"
-    fi
-
-    # Get the first hop IP from traceroute
-    local trace_info
-    trace_info=$(trace_route "$test_url")
-
-    local first_hop
-    first_hop=$(echo "$trace_info" | jq -r '.hops[0].probes[0].ip')
-
-    if [[ "$first_hop" != "$exit_node_ip" ]]; then
-        log_error "Traffic not routing through exit node"
-        log_error "Expected first hop: ${exit_node_ip}"
-        log_error "Actual first hop: ${first_hop:-null}"
-        return "$EXIT_EXITNODE_ERROR"
-    fi
-
-    return 0
-}
 
 # Export required functions
 export -f find_exit_node setup_exit_node
-export -f verify_exit_routing
+

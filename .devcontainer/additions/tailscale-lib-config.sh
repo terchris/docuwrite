@@ -107,40 +107,6 @@ collect_final_state() {
 
 
 
-##### get_ping_stats
-# Extracts ping statistics from state JSON
-#
-# Arguments:
-#   $1 - state_json (string): State JSON containing ping information
-#
-# Returns:
-#   JSON object containing DNS and URL ping statistics
-get_ping_stats() {
-    local state_json="$1"
-
-    jq -n \
-        --argjson state "$state_json" \
-        '{
-            dns: $state.state.testDNS,
-            url: $state.state.testUrl
-        }'
-}
-
-##### get_trace_data
-# Extracts traceroute data from state JSON
-#
-# Arguments:
-#   $1 - state_json (string): State JSON containing traceroute information
-#
-# Returns:
-#   JSON object containing traceroute data
-get_trace_data() {
-    local state_json="$1"
-
-    jq -n \
-        --argjson state "$state_json" \
-        '$state.state.traceroute'
-}
 
 
 ##### convert_tailscale_status2network_tailscale_status
@@ -163,7 +129,6 @@ convert_tailscale_status2network_tailscale_status() {
     jq -n --argjson status "$TAILSCALE_STATUS_JSON" '{
         Self: {
             ID: $status.Self.ID,
-            PublicKey: $status.Self.PublicKey,
             HostName: $status.Self.HostName,
             DNSName: $status.Self.DNSName,
             UserID: $status.Self.UserID,
@@ -200,7 +165,6 @@ convert_tailscale_status2network_tailscale_status() {
         )
     }'
 }
-
 
 ##### save_tailscale_conf
 # Saves the Tailscale configuration JSON to the specified configuration file

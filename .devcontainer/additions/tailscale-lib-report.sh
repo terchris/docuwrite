@@ -21,85 +21,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
-
-# Display configuration summary
-display_configuration() {
-    local config_json="$1"
-
-    log_info "Tailscale Configuration Summary:"
-    log_info "==============================="
-
-    # Container Identity
-    log_info "Container Identity:"
-    log_info "- Hostname: $(echo "$config_json" | jq -r '.containerIdentity.hostname')"
-    log_info "- DNS Name: $(echo "$config_json" | jq -r '.containerIdentity.dnsName')"
-    log_info "- Tailscale IP: $(echo "$config_json" | jq -r '.containerIdentity.tailscaleIP')"
-    log_info "- DERP Region: $(echo "$config_json" | jq -r '.containerIdentity.derpRegion')"
-    log_info "- Created: $(echo "$config_json" | jq -r '.containerIdentity.created')"
-    log_info ""
-
-    # Tailnet Information
-    log_info "Tailnet Information:"
-    log_info "- Name: $(echo "$config_json" | jq -r '.tailnet.name')"
-    log_info "- DNS Suffix: $(echo "$config_json" | jq -r '.tailnet.magicDNSSuffix')"
-    log_info "- MagicDNS: $(echo "$config_json" | jq -r '.tailnet.magicDNSEnabled')"
-    log_info ""
-
-    # User Information
-    log_info "User Information:"
-    log_info "- Login: $(echo "$config_json" | jq -r '.userInfo.loginName')"
-    log_info "- Name: $(echo "$config_json" | jq -r '.userInfo.displayName')"
-    log_info ""
-
-    # Exit Node Status
-    log_info "Exit Node Status:"
-    if [[ "$(echo "$config_json" | jq -r '.exitNode != null')" == "true" ]]; then
-        log_info "- Host: $(echo "$config_json" | jq -r '.exitNode.host')"
-        log_info "- IP: $(echo "$config_json" | jq -r '.exitNode.ip')"
-        log_info "- Connection: $(echo "$config_json" | jq -r '.exitNode.connection')"
-        log_info "- Traffic: ↑$(echo "$config_json" | jq -r '.exitNode.traffic.tx')B ↓$(echo "$config_json" | jq -r '.exitNode.traffic.rx')B"
-    else
-        log_info "- No exit node configured"
-    fi
-    log_info ""
-
-    # Capabilities
-    log_info "Capabilities:"
-    echo "$config_json" | jq -r '.capMap | keys[]' | while IFS= read -r cap; do
-        log_info "- $cap"
-    done
-}
-
-# Display network state changes
-display_network_changes() {
-    local NETWORK_INITIAL_ROUTING_JSON="$1"
-    local NETWORK_TAILSCALE_ROUTING_JSON="$2"
-
-    log_info "Network State Changes:"
-    log_info "====================="
-
-    # Compare routing
-    log_info "Routing Changes:"
-    jq -n --argjson init "$NETWORK_INITIAL_ROUTING_JSON" --argjson final "$NETWORK_TAILSCALE_ROUTING_JSON" '
-        def compare_routes:
-            ($final.routing - $init.routing) as $added |
-            ($init.routing - $final.routing) as $removed |
-            {added: $added, removed: $removed};
-        compare_routes
-    ' | jq -r '
-        if .added | length > 0 then
-            "Added routes:",
-            (.added[] | "  + \(.dst) via \(.gateway // "direct")")
-        else empty end,
-        if .removed | length > 0 then
-            "Removed routes:",
-            (.removed[] | "  - \(.dst) via \(.gateway // "direct")")
-        else empty end
-    ' | while IFS= read -r line; do
-        log_info "$line"
-    done
-}
-
 # Display setup progress
 display_setup_progress() {
     local phase="$1"
@@ -185,6 +106,5 @@ display_completion_summary() {
    return 0
 }
 # Export required functions
-export -f display_configuration display_network_changes
-export -f display_setup_progress
-export -f  display_completion_summary
+export -f display_setup_progress display_completion_summary
+
