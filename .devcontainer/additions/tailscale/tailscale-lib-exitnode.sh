@@ -276,7 +276,41 @@ setup_exit_node() {
     return "$EXIT_EXITNODE_ERROR"
 }
 
+##### verify_exit_node_routing
+# Verify that traffic is being routed through the specified exit node
+# by checking if it appears in the traceroute output
+#
+# Arguments:
+#   $1 - trace_data (string): JSON traceroute data
+#   $2 - proxy_host (string): Hostname of the exit node to verify
+#
+# Returns:
+#   0: Success, exit node found in traceroute
+#   1: Failure, exit node not found in traceroute
+verify_exit_node_routing() {
+    local trace_data="$1"
+    local proxy_host="${2:-devcontainerproxy}"
+
+    # Check first hop for exit node
+    local first_hop
+    first_hop=$(echo "$trace_data" | jq -r '.hops[0].probes[0].name // empty')
+
+    if [[ -z "$first_hop" ]]; then
+        log_error "No valid traceroute data found"
+        return 1
+    fi
+
+    # Check if the first hop matches our exit node
+    if [[ "$first_hop" == *"$proxy_host"* ]]; then
+        log_info "Traffic is correctly routing through exit node: $proxy_host"
+        return 0
+    else
+        log_error "Traffic is not routing through exit node. First hop: $first_hop"
+        return 1
+    fi
+}
+
 
 # Export required functions
-export -f find_exit_node setup_exit_node
+export -f find_exit_node setup_exit_node verify_exit_node_routing
 

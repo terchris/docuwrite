@@ -1,7 +1,7 @@
 #!/bin/bash
-# File: .devcontainer/additions/tailscale-start2.sh
+# File: .devcontainer/additions/tailscale-start.sh
 #
-# Usage: sudo .devcontainer/additions/tailscale-start2.sh
+# Usage: sudo .devcontainer/additions/tailscale-start.sh
 # Purpose:
 #   Starts and configures Tailscale in a devcontainer environment with proper
 #   sequencing, status tracking, and comprehensive network verification.
@@ -15,6 +15,7 @@ set -euo pipefail
 # Source all library files
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 readonly SCRIPT_DIR
+readonly LIB_DIR="${SCRIPT_DIR}/tailscale"
 
 # List of required library files
 readonly REQUIRED_LIBS=(
@@ -28,7 +29,7 @@ readonly REQUIRED_LIBS=(
 
 # Source library files
 for lib in "${REQUIRED_LIBS[@]}"; do
-    lib_file="${SCRIPT_DIR}/tailscale-lib-${lib}.sh"
+    lib_file="${LIB_DIR}/tailscale-lib-${lib}.sh"
     if [[ ! -f "$lib_file" ]]; then
         echo "Error: Required library file not found: $lib_file"
         exit 1
@@ -96,7 +97,20 @@ main() {
 
     # Check root access immediately
     if ! check_root; then
-        return "$EXIT_ENV_ERROR"  # check_root already outputs the error message
+        return "$EXIT_ENV_ERROR"
+    fi
+
+    # Check if Tailscale is already running and properly configured
+    log_info "Checking for existing Tailscale configuration..."
+    local trace_data
+    local test_url="${TAILSCALE_TEST_URL:-www.sol.no}"
+    trace_data=$(trace_route "$test_url")
+    if verify_exit_node_routing "$trace_data" "$TAILSCALE_DEFAULT_PROXY_HOST"; then
+        log_info "Success! Configuration verified"
+        exit 0
+    else
+        log_warn "Exit node routing verification failed"
+        # Handle the error case as needed
     fi
 
     # Record start time for duration calculation

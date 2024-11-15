@@ -21,6 +21,7 @@ fi
 # Network test configuration
 
 readonly DEFAULT_PING_TIMEOUT=5
+readonly DEFAULT_PING_RETRIES=3
 
 
 
@@ -101,16 +102,25 @@ verify_network_state() {
 check_basic_connectivity() {
     local target="${1:-${DEFAULT_DNS_SERVERS[0]}}"
     local timeout="${2:-$DEFAULT_PING_TIMEOUT}"
-    local attempts="${3:-3}"
+    local attempts="${3:-$DEFAULT_PING_RETRIES}"
 
-    local ping_data
-    ping_data=$(ping -c 1 -W "$timeout" "$target" 2>&1)
-    local ping_status=$?
-
+    local ping_status=1
     local rtt=""
-    if [[ $ping_status -eq 0 ]]; then
-        rtt=$(echo "$ping_data" | grep -oP 'time=\K[0-9.]+')
-    fi
+    local attempt=1
+
+    while [[ $attempt -le $attempts && $ping_status -ne 0 ]]; do
+        local ping_data
+        ping_data=$(ping -c 1 -W "$timeout" "$target" 2>&1)
+        ping_status=$?
+
+        if [[ $ping_status -eq 0 ]]; then
+            rtt=$(echo "$ping_data" | grep -oP 'time=\K[0-9.]+')
+            break
+        fi
+
+        ((attempt++))
+        [[ $attempt -le $attempts ]] && sleep 1  # Wait 1 second between retries
+    done
 
     # Return structured JSON data
     jq -n \

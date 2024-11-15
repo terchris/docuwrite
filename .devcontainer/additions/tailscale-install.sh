@@ -1,8 +1,8 @@
 #!/bin/bash
-# File: .devcontainer/additions/tailscale-install2.sh
+# File: .devcontainer/additions/tailscale-install.sh
 #
 # Purpose: Installs Tailscale and sets up required directories in a devcontainer
-# Usage: sudo .devcontainer/additions/tailscale-install2.sh
+# Usage: sudo .devcontainer/additions/tailscale-install.sh
 #
 # Author: Terje Christensen
 # Created: November 2024
@@ -12,6 +12,7 @@ set -euo pipefail
 # Source all library files
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 readonly SCRIPT_DIR
+readonly LIB_DIR="${SCRIPT_DIR}/tailscale"
 
 # List of required library files
 readonly REQUIRED_LIBS=(
@@ -24,7 +25,7 @@ readonly REQUIRED_LIBS=(
 
 # Source library files
 for lib in "${REQUIRED_LIBS[@]}"; do
-    lib_file="${SCRIPT_DIR}/tailscale-lib-${lib}.sh"
+    lib_file="${LIB_DIR}/tailscale-lib-${lib}.sh"
     if [[ ! -f "$lib_file" ]]; then
         echo "Error: Required library file not found: $lib_file"
         exit 1

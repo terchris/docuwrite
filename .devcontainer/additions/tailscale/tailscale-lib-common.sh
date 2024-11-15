@@ -31,6 +31,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
+readonly TAILSCALE_DEFAULT_PROXY_HOST="devcontainerproxy"
+
 # Global configuration
 readonly TAILSCALE_ENV_FILE="/workspace/.devcontainer.extend/tailscale.env"
 readonly TAILSCALE_CONF_FILE="/workspace/.devcontainer.extend/tailscale.conf"
