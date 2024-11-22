@@ -77,11 +77,40 @@ install_project_tools() {
 
     # === ADD YOUR PROJECT-SPECIFIC INSTALLATIONS BELOW ===
 
-    # Example: Installing Azure Functions Core Tools
-    # npm install -g azure-functions-core-tools@4
+    echo "📄 Installing document generation tools..."
 
-    # Example: Installing specific Python packages
-    # pip install pandas numpy
+    # Install system packages
+    sudo apt-get update
+    sudo apt-get install -y \
+        wget \
+        perl \
+        pandoc \
+        chromium \
+        pdfgrep
+
+    # Install global npm packages
+    npm install -g mermaid-filter
+    npm install -g @mermaid-js/mermaid-cli
+    npm install -g mermaid @types/mermaid
+
+    # Install TinyTeX
+    echo "📚 Installing TinyTeX and LaTeX packages..."
+    wget -qO- "https://yihui.org/tinytex/install-unx.sh" | sh
+
+    # Add TinyTeX to PATH permanently
+    echo 'export PATH="$HOME/.TinyTeX/bin/$(uname -m)-linux:$PATH"' >> ~/.bashrc
+    # Also add it to current session
+    export PATH="$HOME/.TinyTeX/bin/$(uname -m)-linux:$PATH"
+
+    # Install additional LaTeX packages
+    tlmgr install \
+        fancyhdr \
+        lastpage \
+        parskip \
+        tex-gyre \
+        ulem
+
+    echo "✅ Document generation tools installation complete!"
 
     # === END PROJECT-SPECIFIC INSTALLATIONS ===
 }
