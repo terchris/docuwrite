@@ -1,3 +1,0 @@
-FROM ${localEnv:DEVCONTAINER_IMAGE_NAME}
-
-# Your additional setup commands here

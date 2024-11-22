@@ -1,0 +1,15 @@
+graph LR;
+ client([client])-. web or API <br> request .->firewall[Azure Application Gateway];
+ firewall-->|routing rule|service[dispatcher?];
+ subgraph Firewall functionality
+ firewall;
+ service-->pod1[Landing zone Prod];
+ service-->pod2[landing zone Test];
+ service-->pod3[Landing zone Dev];
+ end
+ classDef plain fill:#ddd,stroke:#fff,stroke-width:4px,color:#000;
+ classDef k8s fill:#326ce5,stroke:#fff,stroke-width:4px,color:#fff;
+ classDef cluster fill:#fff,stroke:#bbb,stroke-width:2px,color:#326ce5;
+ class firewall,service,pod1,pod2,pod3 k8s;
+ class client plain;
+ class cluster cluster;

@@ -1,3 +1,0 @@
-DOCKER_HOST_URI=unix:///var/folders/_x/jpn255wn7xxbx1wnw5z_p6fc0000gp/T/podman/podman-machine-default-api.sock
-DOCKER_HOST=unix:///var/folders/_x/jpn255wn7xxbx1wnw5z_p6fc0000gp/T/podman/podman-machine-default-api.sock
-PODMAN_SOCKET=unix:///var/folders/_x/jpn255wn7xxbx1wnw5z_p6fc0000gp/T/podman/podman-machine-default-api.sock
