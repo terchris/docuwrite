@@ -1,0 +1,27 @@
+FROM ghcr.io/terchris/docuwrite-base:latest
+
+# Set working directory
+WORKDIR /usr/local/docuwrite
+
+# Copy compiled JavaScript and bash scripts
+COPY dist/cli /usr/local/docuwrite/cli
+COPY src/cli/bash /usr/local/docuwrite/bash
+
+# Make bash scripts executable
+RUN chmod +x /usr/local/docuwrite/bash/*
+
+# Add our cli directories to PATH
+ENV PATH="/usr/local/docuwrite/cli:/usr/local/docuwrite/bash:${PATH}"
+
+# The original entrypoint script will be used (inherited from base image)
+# No need to override CMD as we want to keep the base image's behavior
+
+# Copy our extended entrypoint that adds our commands
+COPY docker/docuwrite-entrypoint.sh /usr/local/bin/docuwrite-entrypoint
+RUN chmod +x /usr/local/bin/docuwrite-entrypoint
+
+# Modify the base entrypoint to include our extensions
+RUN echo '#!/bin/bash\n/usr/local/bin/docuwrite-entrypoint "$@"' > /usr/local/bin/docker-entrypoint-wrapper \
+    && chmod +x /usr/local/bin/docker-entrypoint-wrapper
+
+ENTRYPOINT ["/usr/local/bin/start-with-xvfb", "/usr/local/bin/docker-entrypoint-wrapper"]
