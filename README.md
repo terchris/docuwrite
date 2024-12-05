@@ -4,11 +4,33 @@ DocuWrite extends [docuwrite-base](https://github.com/terchris/docuwrite-base) w
 
 For base functionality and requirements, see the [docuwrite-base documentation](https://github.com/terchris/docuwrite-base).
 
-## Extended Commands
+## Architecture Support
+
+docuwrite supports both x86_64 (AMD64) and ARM64 architectures. The container images are built automatically for both architectures and published to GitHub Container Registry. Docker will automatically select the correct architecture for your system.
+
+## Installation
+
+Pull the container from GitHub Container Registry:
+
+```bash
+# Latest version
+docker pull ghcr.io/terchris/docuwrite:latest
+
+# Specific version
+docker pull ghcr.io/terchris/docuwrite:0.1.1
+```
+
+After you have pulled the container we give it a tag so that it is easier to use.
+
+```bash
+docker tag ghcr.io/terchris/docuwrite:latest docuwrite
+```
+
+Once the container is installed, you can use the `docuwrite` container to generate diagrams, documents, and presentations. The container mounts your project directory and processes the input files based on the selected tool. See the [docuwrite-base documentation](https://github.com/terchris/docuwrite-base) for the base commands.
 
 Commands added by DocuWrite (all prefixed with `docuwrite-`):
+
 ```bash
-# Hello world test command
 docker run --rm docuwrite docuwrite-hello
 docker run --rm docuwrite docuwrite-hello --verbose
 ```
