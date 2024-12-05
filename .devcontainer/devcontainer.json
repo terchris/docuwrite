@@ -10,27 +10,15 @@
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "ms-vscode.vscode-typescript-next",
-        "timonwong.shellcheck"
-      ],
-      "settings": {
-        "editor.formatOnSave": true,
-        "[typescript]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
-        },
-        "[javascript]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
-        },
-        "[json]": {
-          "editor.defaultFormatter": "vscode.json-language-features"
-        },
-        "typescript.updateImportsOnFileMove.enabled": "always"
-      }
+        "timonwong.shellcheck",
+        "ms-azuretools.vscode-docker"
+      ]
     }
   },
   "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind",
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
   ],
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
-  "workspaceFolder": "/workspace"
+  "workspaceFolder": "/workspace",
+  "remoteUser": "ubuntu",
+  "updateRemoteUserUID": true
 }

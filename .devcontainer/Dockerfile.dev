@@ -1,13 +1,72 @@
 FROM ghcr.io/terchris/docuwrite-base:latest
 
-# Install development tools (TypeScript and development dependencies)
-RUN npm install -g typescript @types/node ts-node nodemon \
-    && npm install -g eslint prettier @typescript-eslint/parser @typescript-eslint/eslint-plugin
+# Add metadata
+LABEL maintainer="Terje Christensen" \
+      version="0.1.1" \
+      description="DocuWrite create presentations from wiki" \
+      source="https://github.com/terchris/docuwrite" \
+      documentation="https://github.com/terchris/docuwrite#readme"
 
-# Install shellcheck for bash script development
-RUN apt-get update && apt-get install -y shellcheck \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Set NODE_ENV to development so that devDependencies
+ENV NODE_ENV=development
+
+# Install essential development tools during build
+RUN npm install -g typescript
 
 # Set working directory
 WORKDIR /workspace
+
+
+# Create service initialization script for Xvfb and background installation
+RUN echo '#!/bin/bash\n\
+# Check if Xvfb is already running\n\
+if ! ps aux | grep -v grep | grep -q "Xvfb :99"; then\n\
+    echo "Starting Xvfb..."\n\
+    sudo Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &\n\
+    sleep 2\n\
+fi\n\
+\n\
+# Check if additional tools need to be installed\n\
+if [ ! -f "/tmp/install-complete" ] && ! pidof -q apt-get; then\n\
+    echo "Starting background installation of additional development tools..."\n\
+    (\n\
+        sudo apt-get update && \
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        shellcheck && \
+        echo "Development tools installation complete!" > /tmp/install-complete\n\
+    ) > /tmp/install.log 2>&1 &\n\
+fi' > /usr/local/bin/start-services.sh \
+    && chmod +x /usr/local/bin/start-services.sh
+
+# Add service initialization and status check to the user's bash profile
+RUN echo '. /usr/local/bin/start-services.sh\n\
+\n\
+# Function to check installation status\n\
+check_install_status() {\n\
+    if [ ! -f "/tmp/install-complete" ] && pidof -q apt-get; then\n\
+        echo "Note: Development tools are still installing in background."\n\
+        echo "      Installation progress can be monitored with: tail -f /tmp/install.log"\n\
+    fi\n\
+}\n\
+PROMPT_COMMAND="check_install_status"' >> /root/.bashrc
+
+
+# Set up dev container initialization script
+COPY <<EOF /usr/local/bin/dev-init.sh
+#!/bin/bash
+# Start services
+/usr/local/bin/start-services.sh
+
+# Execute the provided command or start a shell
+if [ \$# -gt 0 ]; then
+    exec "\$@"
+else
+    exec bash
+fi
+EOF
+
+RUN chmod +x /usr/local/bin/dev-init.sh
+
+# Use the initialization script as the entrypoint
+ENTRYPOINT ["/usr/local/bin/dev-init.sh"]
+CMD ["bash"]

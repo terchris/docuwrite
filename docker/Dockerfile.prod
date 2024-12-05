@@ -1,26 +1,30 @@
+# file: docker/Dockerfile.prod
+# Description: Production container that extends docuwrite-base
+
 FROM ghcr.io/terchris/docuwrite-base:latest
+
+# Set NODE_ENV for production
+ENV NODE_ENV=production
 
 # Set working directory
 WORKDIR /usr/local/docuwrite
 
 # Copy compiled JavaScript and bash scripts
-COPY dist/cli /usr/local/docuwrite/cli
-COPY src/cli/bash /usr/local/docuwrite/bash
+COPY dist/cli/typescript/commands/*.js /usr/local/docuwrite/cli/commands/
+COPY src/cli/bash/* /usr/local/docuwrite/bash/
 
-# Make bash scripts executable
-RUN chmod +x /usr/local/docuwrite/bash/*
+# Make scripts executable
+RUN chmod +x /usr/local/docuwrite/bash/* && \
+    chmod +x /usr/local/docuwrite/cli/commands/*
 
 # Add our cli directories to PATH
 ENV PATH="/usr/local/docuwrite/cli:/usr/local/docuwrite/bash:${PATH}"
 
-# The original entrypoint script will be used (inherited from base image)
-# No need to override CMD as we want to keep the base image's behavior
-
-# Copy our extended entrypoint that adds our commands
+# Copy our entrypoint
 COPY docker/docuwrite-entrypoint.sh /usr/local/bin/docuwrite-entrypoint
 RUN chmod +x /usr/local/bin/docuwrite-entrypoint
 
-# Modify the base entrypoint to include our extensions
+# Create entrypoint wrapper to preserve base functionality
 RUN echo '#!/bin/bash\n/usr/local/bin/docuwrite-entrypoint "$@"' > /usr/local/bin/docker-entrypoint-wrapper \
     && chmod +x /usr/local/bin/docker-entrypoint-wrapper
 
