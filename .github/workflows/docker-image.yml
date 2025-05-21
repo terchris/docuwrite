@@ -1,69 +1,112 @@
+# File: .github/workflows/docker-image.yml for docuwrite repository
+# Repository: https://github.com/terchris/docuwrite
+#
+# Purpose:
+# This workflow builds and publishes multi-architecture Docker images to GitHub Container Registry.
+# It is triggered automatically when a version tag (v*) is pushed to the repository.
+# The workflow handles TypeScript compilation and Docker image building for both AMD64 and ARM64 architectures.
+#
+# Key functionality:
+# 1. Sets up Node.js environment and builds TypeScript code
+# 2. Configures multi-architecture (AMD64/ARM64) build support
+# 3. Authenticates with GitHub Container Registry
+# 4. Creates version tags based on semantic versioning
+# 5. Builds and pushes Docker images with appropriate labels and tags
+# 6. Ensures package visibility is set to PUBLIC to allow unauthenticated pulls
+#
+# Required permissions:
+# - contents: read - To read repository content
+# - packages: write - To write packages to GitHub Container Registry
+#
+# Image tagging strategy:
+# - Full version tag (e.g., v1.2.3 → 1.2.3)
+# - Major.Minor tag (e.g., v1.2.3 → 1.2)
+# - Latest tag (on default branch)
+#
+# Last updated: May 2025
+
 name: Docker Image CI
 
+# Only trigger this workflow when a version tag is pushed
 on:
   push:
-    tags: [ 'v*' ]  # Only trigger on version tags
+    tags: [ 'v*' ]  # Matches tags like v1.0.0, v2.3.1, etc.
 
+# Define permissions needed for this workflow
 permissions:
-  contents: read
-  packages: write
+  contents: read  # Permission to read repository contents
+  packages: write  # Permission to write packages to GitHub Container Registry
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-
     steps:
+    # Check out the repository code at the tagged version
     - name: Checkout repository
       uses: actions/checkout@v4
-
+      
+    # Set up Node.js for TypeScript compilation
+    # Uses npm caching to speed up dependency installation
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
-        cache: 'npm'
-
+        node-version: '20'  # Using Node.js 20 LTS
+        cache: 'npm'        # Enable npm dependency caching
+      
+    # Install project dependencies from package-lock.json
     - name: Install dependencies
-      run: npm ci
-
+      run: npm ci  # Clean install that respects lockfile exactly
+      
+    # Compile TypeScript code to JavaScript
     - name: Build TypeScript
       run: npm run build
-
+      
+    # Set up QEMU to enable building for multiple CPU architectures
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
-
+      
+    # Set up Docker Buildx to support multi-architecture image building
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       with:
-        platforms: linux/amd64,linux/arm64
-
+        platforms: linux/amd64,linux/arm64  # Build for both Intel/AMD and ARM architectures
+      
+    # Authenticate with GitHub Container Registry
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
+      
+    # Extract metadata for Docker image and prepare tags and labels
     - name: Extract metadata (tags, labels) for Docker
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ghcr.io/${{ github.repository }}
+        # Configure version tag formats
         tags: |
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{version}}          # e.g., v1.2.3 -> 1.2.3
+          type=semver,pattern={{major}}.{{minor}}  # e.g., v1.2.3 -> 1.2
           type=raw,value=latest,enable={{is_default_branch}}
         flavor: |
           latest=auto
-
+      
+    # Build and push the Docker image with all specified platforms, tags, and labels
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: docker/Dockerfile.prod
+        file: docker/Dockerfile.prod  # Custom Dockerfile path for production builds
         platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        # Add custom labels including the critical public visibility label
+        labels: |
+          ${{ steps.meta.outputs.labels }}
+          org.opencontainers.image.visibility=public  # Ensures the package is publicly accessible
+        # Configure build caching for faster builds
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        provenance: false
+        provenance: false  # Disable provenance attestation
